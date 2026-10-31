@@ -27,34 +27,31 @@
       <img class="shot" src="assets/screenshots/iphone-sessions.png" alt="The iPhone app listing Claude and Codex sessions running on a Mac" width="402" height="874">
     </section>
 
-    <section id="download" class="downloads" aria-label="Downloads">
-      <div class="dl">
-        <h2>1 · Mac (host)</h2>
-        <p>Install on the Mac that does the work. It runs your agents.</p>
-        {{macAction}}
-        <small>{{macNote}}</small>
+    <section id="download" class="steps" aria-label="Get started in three steps">
+      <div class="step">
+        <div class="num">Step 1</div>
+        <div class="body">
+          <h2>Install Agent Remote on your Mac</h2>
+          <p>Open the download, drag <b>Agent Remote</b> to Applications and open it. In its window, click <b>Install Claude</b> or <b>Install Codex</b> (or <b>Sign in</b> if you already use them). This Mac is where your agents run.</p>
+          <div class="actions">{{macAction}}<small>{{macNote}}</small></div>
+        </div>
       </div>
-      <div class="dl">
-        <h2>2 · iPhone</h2>
-        <p>The remote. Pairs with your Mac by QR code.</p>
-        {{iphoneAction}}
-        <small>{{iphoneNote}}</small>
+      <div class="step">
+        <div class="num">Step 2</div>
+        <div class="body">
+          <h2>Get the app on your phone or laptop</h2>
+          <p>Install the iPhone app, or Agent Remote Client on another Mac. Either one works as the remote.</p>
+          <div class="actions">{{iphoneAction}}<small>{{iphoneNote}}</small></div>
+          <div class="actions">{{clientAction}}<small>{{clientNote}}</small></div>
+        </div>
       </div>
-      <div class="dl">
-        <h2>Desktop client</h2>
-        <p>The same remote for a laptop or another Mac.</p>
-        {{clientAction}}
-        <small>{{clientNote}}</small>
+      <div class="step">
+        <div class="num">Step 3</div>
+        <div class="body">
+          <h2>Pair them and start a task</h2>
+          <p>On the Mac, click <b>Show pairing code</b>. On the iPhone, tap <b>Pair this iPhone → Scan QR code</b>, scan it and tap <b>Pair Mac</b> (in Agent Remote Client, use <b>Pair another Mac</b> in the gear menu). Then tap the compose button, pick Claude or Codex and a folder, and send your first task.</p>
+        </div>
       </div>
-    </section>
-
-    <section>
-      <h2>How it works</h2>
-      <ol class="steps">
-        <li><strong>Install Agent Remote on your Mac.</strong> It uses the Claude Code or Codex sign-in you already have. Everything the agents do happens on that Mac.</li>
-        <li><strong>Pair your phone or laptop</strong> by scanning a QR code. Pairing sets up a key that only your devices and your Mac hold.</li>
-        <li><strong>Work from anywhere.</strong> Start sessions, read replies as they stream, send follow-ups and files, and answer questions and permission prompts. Run <code>pickup</code> in Terminal on the Mac to continue the same session there.</li>
-      </ol>
 <pre class="diagram" aria-label="Your iPhone or laptop talks to your Mac through an encrypted relay">
 iPhone / laptop  ⇄  relay (forwards ciphertext)  ⇄  your Mac
                                                     └ Claude Code, Codex,

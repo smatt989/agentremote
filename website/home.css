@@ -27,18 +27,21 @@ h2 { font-size: 20px; margin: 0 0 12px; }
 .shot { width: 220px; height: auto; border-radius: 28px; border: 1px solid var(--line); }
 @media (max-width: 680px) { .hero { grid-template-columns: 1fr; } .shot { width: 180px; justify-self: center; } }
 
-.downloads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-@media (max-width: 760px) { .downloads { grid-template-columns: 1fr; } }
-.dl { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
-.dl h2 { font-size: 16px; margin: 0; }
-.dl p { margin: 0; color: var(--muted); font-size: 15px; flex: 1; }
-.dl small { color: var(--muted); font-size: 13px; }
+.step { display: grid; grid-template-columns: 88px 1fr; gap: 20px; padding: 22px 0; border-bottom: 1px solid var(--line); }
+.step:first-child { padding-top: 4px; }
+.num { font-weight: 700; color: var(--accent); font-size: 15px; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 3px; }
+.step h2 { font-size: 22px; margin: 0 0 8px; }
+.step p { margin: 0 0 14px; }
+.actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+.actions .button { min-width: 210px; }
+.actions small { color: var(--muted); font-size: 14px; }
+@media (max-width: 600px) { .step { grid-template-columns: 1fr; gap: 6px; } }
 
 .button { display: inline-block; text-align: center; padding: 10px 16px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; text-decoration: none; }
 .unavailable { color: var(--muted); font-size: 15px; }
 
-.steps, .features { margin: 0; padding-left: 22px; }
-.steps li, .features li { margin: 8px 0; }
+.features { margin: 0; padding-left: 22px; }
+.features li { margin: 8px 0; }
 .features { list-style: disc; }
 .diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 18px 0 0; color: var(--muted); }
 
