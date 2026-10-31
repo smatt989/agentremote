@@ -1,0 +1,39 @@
+AGENT REMOTE — MAC SETUP
+
+1. Drag Agent Remote into Applications, then open it from Applications.
+   It is signed and notarized by Apple. A managed Mac may still block it.
+2. The app starts its Mac service automatically. Node and its dependencies
+   are included. No Homebrew, npm, or Xcode installation is needed.
+3. Connect an agent: use Install Claude / Install Codex, or Sign in, and
+   finish in your browser. You need at least one. Existing sign-ins are
+   reused. If setup fails, the adjacent menu offers Manual setup in Terminal.
+4. Get the companion app on your phone, or Agent Remote Client on another
+   Mac, from https://smatt989.github.io/agentremote-site/#download
+5. Click Show pairing code. In the app, tap Pair this iPhone > Scan QR code
+   (or Pair another Mac in the gear menu), scan, then tap Pair Mac.
+6. Turn on Start at login if desired. Approve it in Login Items if macOS asks.
+
+Closing the setup window leaves Agent Remote running in the menu bar.
+Quitting the app stops remote access and ends running agents.
+Keep the Mac awake, online, and logged in. No VPN or relay setup is needed.
+New agent sessions have full access to this Mac. Pair only devices you trust.
+
+Requires macOS 13.5 or newer. Includes Apple Silicon and Intel runtimes.
+Help: https://smatt989.github.io/agentremote-site/support.html
+
+UPDATING
+Quit Agent Remote, replace the app in Applications, and open the new copy.
+Paired devices and session history remain in your personal Application Support
+folder. If Start at login needs approval again after an update, toggle it in
+Agent Remote and approve the entry in System Settings.
+
+EXISTING TERMINAL INSTALLATION
+If the app detects the older login service, it leaves it running and lets you
+pair with it. After ending active sessions, click Use this app to manage the
+service to switch over. Existing state and pairing are retained.
+
+REMOVING
+Turn off Start at login, quit Agent Remote, then move the app to Trash.
+This keeps your conversations and pairing data. Agent Remote data lives at:
+~/Library/Application Support/AgentRemote
+Logs: ~/Library/Logs/AgentRemote

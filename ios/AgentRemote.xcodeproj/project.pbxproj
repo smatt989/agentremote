@@ -1,0 +1,457 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5438F6952B2A53255241A6E8 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CC326AC7BD7880DDEECA3A9 /* Models.swift */; };
+		AA22D17B99123D13271B75F6 /* RelayTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65CA74EA6BF03DA6251C2EF /* RelayTransport.swift */; };
+		AB0000000000000000000002 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* TerminalView.swift */; };
+		AB000000000000000000000A /* NotificationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000009 /* NotificationSupport.swift */; };
+		AB0000000000000000000008 /* ListParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000007 /* ListParts.swift */; };
+		AB0000000000000000000006 /* ConversationParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000005 /* ConversationParts.swift */; };
+		AB000000000000000000000C /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000000B /* Theme.swift */; };
+		AB0000000000000000000004 /* TerminalAssets in Resources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000003 /* TerminalAssets */; };
+		AB40046E328580B62D066664 /* Voice.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBA56B3B392F01E09FAFA182 /* Voice.swift */; };
+		B8D4E2F6A31C5D7E9F0A1B2C /* MacUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C3D1E5F20B4C6D8E9F0A1B /* MacUpdater.swift */; };
+		AC00000000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AC00000000000000000000011 /* Assets.xcassets */; };
+		AC00000000000000000000022 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AC00000000000000000000021 /* PrivacyInfo.xcprivacy */; };
+		AC312707316C01C768FD2161 /* RelayCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 915CCFC6421FBE20024225AC /* RelayCrypto.swift */; };
+		B25222F4FE483CF4415E6EDE /* AgentRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FED2E4AFCC770C83EA6004 /* AgentRemoteApp.swift */; };
+		BF27771630A5C2CBEE5E3817 /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B90C67309C0DE54E607073A /* ConversationView.swift */; };
+		DB38F3B1B39D080952549B54 /* SessionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 319967D7073ABAD275646A2A /* SessionListView.swift */; };
+		E28473504DBC7557EFD4A320 /* QRScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79A21E9D15C8E6E1646953CD /* QRScanner.swift */; };
+		AD0000000000000000000002 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000000000000000000001 /* NotificationService.swift */; };
+		AD0000000000000000000003 /* NotificationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000009 /* NotificationSupport.swift */; };
+		AD0000000000000000000007 /* AgentRemoteNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AD0000000000000000000006 /* AgentRemoteNotificationService.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AD0000000000000000000009 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 244210E48437B6556980A702 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AD000000000000000000000B;
+			remoteInfo = AgentRemoteNotificationService;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		AD0000000000000000000008 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AD0000000000000000000007 /* AgentRemoteNotificationService.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1CC326AC7BD7880DDEECA3A9 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		319967D7073ABAD275646A2A /* SessionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListView.swift; sourceTree = "<group>"; };
+		5B90C67309C0DE54E607073A /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationView.swift; sourceTree = "<group>"; };
+		79A21E9D15C8E6E1646953CD /* QRScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScanner.swift; sourceTree = "<group>"; };
+		915CCFC6421FBE20024225AC /* RelayCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayCrypto.swift; sourceTree = "<group>"; };
+		A172CEDCAE47474B615C54D5 /* AgentRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = AgentRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB000000000000000000000B /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		AB0000000000000000000005 /* ConversationParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationParts.swift; sourceTree = "<group>"; };
+		AB0000000000000000000007 /* ListParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListParts.swift; sourceTree = "<group>"; };
+		AB0000000000000000000009 /* NotificationSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSupport.swift; sourceTree = "<group>"; };
+		AB0000000000000000000001 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
+		AB0000000000000000000003 /* TerminalAssets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = TerminalAssets; sourceTree = "<group>"; };
+		AC00000000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AC00000000000000000000021 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B1FED2E4AFCC770C83EA6004 /* AgentRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRemoteApp.swift; sourceTree = "<group>"; };
+		CBA56B3B392F01E09FAFA182 /* Voice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice.swift; sourceTree = "<group>"; };
+		A7C3D1E5F20B4C6D8E9F0A1B /* MacUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacUpdater.swift; sourceTree = "<group>"; };
+		F65CA74EA6BF03DA6251C2EF /* RelayTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTransport.swift; sourceTree = "<group>"; };
+		AD0000000000000000000001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		AD0000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AD0000000000000000000005 /* NotificationService.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotificationService.entitlements; sourceTree = "<group>"; };
+		AD0000000000000000000006 /* AgentRemoteNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AgentRemoteNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E2AA269EB967A8853A258BFA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AD000000000000000000000D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A3E27B8CA818264D75C8D81 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A172CEDCAE47474B615C54D5 /* AgentRemote.app */,
+				AD0000000000000000000006 /* AgentRemoteNotificationService.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0D6E4079E36703EBD37C0072 = {
+			isa = PBXGroup;
+			children = (
+				F810A3947224DC074E90BB0D /* AgentRemote */,
+				AD000000000000000000000F /* AgentRemoteNotificationService */,
+				0A3E27B8CA818264D75C8D81 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F810A3947224DC074E90BB0D /* AgentRemote */ = {
+			isa = PBXGroup;
+			children = (
+				AB0000000000000000000001 /* TerminalView.swift */,
+				AB0000000000000000000009 /* NotificationSupport.swift */,
+				AB0000000000000000000007 /* ListParts.swift */,
+				AB0000000000000000000005 /* ConversationParts.swift */,
+				AB000000000000000000000B /* Theme.swift */,
+				AC00000000000000000000021 /* PrivacyInfo.xcprivacy */,
+				AC00000000000000000000011 /* Assets.xcassets */,
+				AB0000000000000000000003 /* TerminalAssets */,
+				B1FED2E4AFCC770C83EA6004 /* AgentRemoteApp.swift */,
+				5B90C67309C0DE54E607073A /* ConversationView.swift */,
+				1CC326AC7BD7880DDEECA3A9 /* Models.swift */,
+				79A21E9D15C8E6E1646953CD /* QRScanner.swift */,
+				915CCFC6421FBE20024225AC /* RelayCrypto.swift */,
+				F65CA74EA6BF03DA6251C2EF /* RelayTransport.swift */,
+				319967D7073ABAD275646A2A /* SessionListView.swift */,
+				CBA56B3B392F01E09FAFA182 /* Voice.swift */,
+				A7C3D1E5F20B4C6D8E9F0A1B /* MacUpdater.swift */,
+			);
+			path = AgentRemote;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000000F /* AgentRemoteNotificationService */ = {
+			isa = PBXGroup;
+			children = (
+				AD0000000000000000000001 /* NotificationService.swift */,
+				AD0000000000000000000004 /* Info.plist */,
+				AD0000000000000000000005 /* NotificationService.entitlements */,
+			);
+			path = AgentRemoteNotificationService;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		34A04005BCAF206EEC990BD9 /* AgentRemote */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1B672BF3DA427763BF644BE3 /* Build configuration list for PBXNativeTarget "AgentRemote" */;
+			buildPhases = (
+				878A52FC5FF6A57D50B7B870 /* Sources */,
+				E2AA269EB967A8853A258BFA /* Frameworks */,
+				41D311A605520FC7B8B9A980 /* Resources */,
+				AD0000000000000000000008 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AD000000000000000000000A /* PBXTargetDependency */,
+			);
+			name = AgentRemote;
+			productName = AgentRemote;
+			productReference = A172CEDCAE47474B615C54D5 /* AgentRemote.app */;
+			productType = "com.apple.product-type.application";
+		};
+		AD000000000000000000000B /* AgentRemoteNotificationService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AD0000000000000000000012 /* Build configuration list for PBXNativeTarget "AgentRemoteNotificationService" */;
+			buildPhases = (
+				AD000000000000000000000C /* Sources */,
+				AD000000000000000000000D /* Frameworks */,
+				AD000000000000000000000E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AgentRemoteNotificationService;
+			productName = AgentRemoteNotificationService;
+			productReference = AD0000000000000000000006 /* AgentRemoteNotificationService.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		244210E48437B6556980A702 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2610;
+			};
+			buildConfigurationList = 76F8DEC3DFE0BDB465198890 /* Build configuration list for PBXProject "AgentRemote" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 0D6E4079E36703EBD37C0072;
+			productRefGroup = 0A3E27B8CA818264D75C8D81 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				34A04005BCAF206EEC990BD9 /* AgentRemote */,
+				AD000000000000000000000B /* AgentRemoteNotificationService */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		41D311A605520FC7B8B9A980 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC00000000000000000000022 /* PrivacyInfo.xcprivacy in Resources */,
+				AC00000000000000000000012 /* Assets.xcassets in Resources */,
+				AB0000000000000000000004 /* TerminalAssets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AD000000000000000000000E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		878A52FC5FF6A57D50B7B870 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB0000000000000000000002 /* TerminalView.swift in Sources */,
+				AB000000000000000000000A /* NotificationSupport.swift in Sources */,
+				AB0000000000000000000008 /* ListParts.swift in Sources */,
+				AB0000000000000000000006 /* ConversationParts.swift in Sources */,
+				AB000000000000000000000C /* Theme.swift in Sources */,
+				B25222F4FE483CF4415E6EDE /* AgentRemoteApp.swift in Sources */,
+				BF27771630A5C2CBEE5E3817 /* ConversationView.swift in Sources */,
+				5438F6952B2A53255241A6E8 /* Models.swift in Sources */,
+				E28473504DBC7557EFD4A320 /* QRScanner.swift in Sources */,
+				AC312707316C01C768FD2161 /* RelayCrypto.swift in Sources */,
+				AA22D17B99123D13271B75F6 /* RelayTransport.swift in Sources */,
+				DB38F3B1B39D080952549B54 /* SessionListView.swift in Sources */,
+				AB40046E328580B62D066664 /* Voice.swift in Sources */,
+				B8D4E2F6A31C5D7E9F0A1B2C /* MacUpdater.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AD000000000000000000000C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AD0000000000000000000002 /* NotificationService.swift in Sources */,
+				AD0000000000000000000003 /* NotificationSupport.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AD000000000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = AD000000000000000000000B /* AgentRemoteNotificationService */;
+			targetProxy = AD0000000000000000000009 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0B0C687DF8B6B8DC790B519C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				AGENT_REMOTE_APP_ENTITLEMENTS = "";
+				AGENT_REMOTE_BUNDLE_ID = com.agentremote.iphone;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 33;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.5.1;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		6C7EFF6369083C8E1F2B1994 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				APP_DISPLAY_NAME = "Agent Remote";
+				"APP_DISPLAY_NAME[sdk=macosx*]" = "Agent Remote Client";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = YA9PU25M2S;
+				INFOPLIST_FILE = AgentRemote/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AGENT_REMOTE_BUNDLE_ID)";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = "$(AGENT_REMOTE_APP_ENTITLEMENTS)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = AgentRemote/Mac.entitlements;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2,6";
+			};
+			name = Debug;
+		};
+		73EBF6644258C120893E685D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				AGENT_REMOTE_APP_ENTITLEMENTS = "";
+				AGENT_REMOTE_BUNDLE_ID = com.agentremote.iphone;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 33;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.5.1;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DD75E2CB1C510A828AC72D96 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				APP_DISPLAY_NAME = "Agent Remote";
+				"APP_DISPLAY_NAME[sdk=macosx*]" = "Agent Remote Client";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = YA9PU25M2S;
+				INFOPLIST_FILE = AgentRemote/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AGENT_REMOTE_BUNDLE_ID)";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = "$(AGENT_REMOTE_APP_ENTITLEMENTS)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = AgentRemote/Mac.entitlements;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2,6";
+			};
+			name = Release;
+		};
+		AD0000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = AgentRemoteNotificationService/NotificationService.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = YA9PU25M2S;
+				INFOPLIST_FILE = AgentRemoteNotificationService/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AGENT_REMOTE_BUNDLE_ID).NotificationService";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AD0000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = AgentRemoteNotificationService/NotificationService.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = YA9PU25M2S;
+				INFOPLIST_FILE = AgentRemoteNotificationService/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AGENT_REMOTE_BUNDLE_ID).NotificationService";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1B672BF3DA427763BF644BE3 /* Build configuration list for PBXNativeTarget "AgentRemote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6C7EFF6369083C8E1F2B1994 /* Debug */,
+				DD75E2CB1C510A828AC72D96 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		76F8DEC3DFE0BDB465198890 /* Build configuration list for PBXProject "AgentRemote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73EBF6644258C120893E685D /* Debug */,
+				0B0C687DF8B6B8DC790B519C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AD0000000000000000000012 /* Build configuration list for PBXNativeTarget "AgentRemoteNotificationService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AD0000000000000000000010 /* Debug */,
+				AD0000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 244210E48437B6556980A702 /* Project object */;
+}

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Remote — Claude Code and Codex on your Mac, driven from your phone</title>
+  <meta name="description" content="A free, open-source Mac app that keeps Claude Code and Codex running on your own Mac and lets you start, follow and answer them from your iPhone or another computer. End-to-end encrypted.">
+  <meta property="og:title" content="Agent Remote">
+  <meta property="og:description" content="Claude Code and Codex run on your Mac. Drive them from your phone.">
+  {{canonical}}
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="home.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./"><img src="assets/mark.svg" alt="" width="22" height="22"> Agent Remote</a>
+    <a class="star" href="{{repoUrl}}">★ Star on GitHub<span id="stars"></span></a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <h1>Claude Code and Codex run on your Mac. Drive them from your phone.</h1>
+        <p class="lead">Agent Remote is a small Mac app that keeps your coding agents running on your own machine, with your files, tools and logins, and lets you start, follow and answer them from your iPhone or another computer.</p>
+        <p class="meta">Free · MIT licensed · End-to-end encrypted · No accounts</p>
+      </div>
+      <img class="shot" src="assets/screenshots/iphone-sessions.png" alt="The iPhone app listing Claude and Codex sessions running on a Mac" width="402" height="874">
+    </section>
+
+    <section id="download" class="downloads" aria-label="Downloads">
+      <div class="dl">
+        <h2>1 · Mac (host)</h2>
+        <p>Install on the Mac that does the work. It runs your agents.</p>
+        {{macAction}}
+        <small>{{macNote}}</small>
+      </div>
+      <div class="dl">
+        <h2>2 · iPhone</h2>
+        <p>The remote. Pairs with your Mac by QR code.</p>
+        {{iphoneAction}}
+        <small>{{iphoneNote}}</small>
+      </div>
+      <div class="dl">
+        <h2>Desktop client</h2>
+        <p>The same remote for a laptop or another Mac.</p>
+        {{clientAction}}
+        <small>{{clientNote}}</small>
+      </div>
+    </section>
+
+    <section>
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li><strong>Install Agent Remote on your Mac.</strong> It uses the Claude Code or Codex sign-in you already have. Everything the agents do happens on that Mac.</li>
+        <li><strong>Pair your phone or laptop</strong> by scanning a QR code. Pairing sets up a key that only your devices and your Mac hold.</li>
+        <li><strong>Work from anywhere.</strong> Start sessions, read replies as they stream, send follow-ups and files, and answer questions and permission prompts. Run <code>pickup</code> in Terminal on the Mac to continue the same session there.</li>
+      </ol>
+<pre class="diagram" aria-label="Your iPhone or laptop talks to your Mac through an encrypted relay">
+iPhone / laptop  ⇄  relay (forwards ciphertext)  ⇄  your Mac
+                                                    └ Claude Code, Codex,
+                                                      your files and tools</pre>
+    </section>
+
+    <section>
+      <h2>What you get</h2>
+      <ul class="features">
+        <li>Several Claude and Codex sessions running in parallel, in one list.</li>
+        <li>One live session shared between Terminal on the Mac and your phone.</li>
+        <li>Push notifications when an agent replies or needs an answer.</li>
+        <li>Questions, permission prompts and folder-trust prompts as tap-to-answer cards.</li>
+        <li>Files, photos and screenshots in both directions, and voice dictation.</li>
+        <li>A local knowledge base built from your conversations, shared by later sessions.</li>
+        <li>Desktop apps that update themselves.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Security and privacy</h2>
+      <ul class="features">
+        <li><strong>Your agents run on your Mac, with full access to it.</strong> Anyone you pair can direct them, so pair only your own devices. You can revoke a device at any time.</li>
+        <li><strong>End-to-end encrypted.</strong> Devices agree on keys with X25519 and encrypt every request, reply and file with AES-256-GCM. The relay sees routing IDs, IP addresses, timing and sizes, never content.</li>
+        <li><strong>No accounts, analytics or tracking.</strong> Model traffic goes from your Mac directly to Anthropic or OpenAI under your own sign-in.</li>
+        <li><strong>Run your own relay</strong> if you prefer: it is a small Node service in the repo. <a href="{{repoUrl}}/blob/main/docs/relay-deployment.md">Instructions</a> · <a href="privacy.html">Privacy policy</a></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Requirements</h2>
+      <ul class="features">
+        <li>Mac: macOS 13.5 or later, Apple silicon or Intel, kept awake and online.</li>
+        <li>An agent: <a href="https://docs.anthropic.com/en/docs/claude-code/overview">Claude Code</a> or <a href="https://github.com/openai/codex">Codex</a>. Agent Remote can install and sign in for you.</li>
+        <li>iPhone: iOS 17 or later. Desktop client: macOS 14 or later.</li>
+      </ul>
+    </section>
+
+    <section class="oss">
+      <h2>Open source</h2>
+      <p>Agent Remote is MIT licensed. Read the code, <a href="{{repoUrl}}/issues">report a bug</a>, or <a href="{{repoUrl}}/blob/main/CONTRIBUTING.md">send a pull request</a>.</p>
+      <a class="button" href="{{repoUrl}}">★ Star on GitHub</a>
+    </section>
+  </main>
+
+  <footer>
+    <a href="{{repoUrl}}">GitHub</a> · <a href="support.html">Support</a> · <a href="privacy.html">Privacy</a>
+  </footer>
+
+  <script>
+    // Star count from GitHub's public API; the page works the same without it.
+    fetch('{{repoApi}}').then(r => r.ok ? r.json() : null).then(repo => {
+      if (repo && Number.isFinite(repo.stargazers_count)) document.getElementById('stars').textContent = ' · ' + repo.stargazers_count.toLocaleString();
+    }).catch(() => {});
+  </script>
+</body>
+</html>

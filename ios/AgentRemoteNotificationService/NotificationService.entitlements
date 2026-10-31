@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+	<!-- Reads the per-Mac E2E secrets the app keeps in this group, to decrypt rich alerts. -->
+	<key>keychain-access-groups</key><array><string>$(AppIdentifierPrefix)com.agentremote.shared</string></array>
+</dict></plist>

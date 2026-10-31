@@ -1,0 +1,46 @@
+:root {
+  --bg: #fff; --fg: #16181d; --muted: #5d6470; --line: #e3e6ea; --card: #f6f7f9; --accent: #0f8f86; --accent-fg: #fff;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0e1013; --fg: #eceef1; --muted: #9aa1ac; --line: #262a31; --card: #171a1f; --accent: #3fd0c2; --accent-fg: #062522; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+a { color: var(--accent); }
+code, pre { font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+code { background: var(--card); padding: 1px 5px; border-radius: 4px; }
+
+.top, main, footer { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+.top { display: flex; justify-content: space-between; align-items: center; height: 64px; }
+.brand { display: flex; gap: 8px; align-items: center; color: var(--fg); font-weight: 600; text-decoration: none; }
+.star { font-size: 15px; text-decoration: none; }
+
+section { padding: 28px 0; border-top: 1px solid var(--line); }
+section:first-child { border-top: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.12; letter-spacing: -0.02em; margin: 8px 0 16px; }
+h2 { font-size: 20px; margin: 0 0 12px; }
+.lead { font-size: 19px; color: var(--muted); margin: 0 0 12px; }
+.meta { font-size: 15px; color: var(--muted); margin: 0; }
+
+.hero { display: grid; grid-template-columns: 1fr 220px; gap: 40px; align-items: center; }
+.shot { width: 220px; height: auto; border-radius: 28px; border: 1px solid var(--line); }
+@media (max-width: 680px) { .hero { grid-template-columns: 1fr; } .shot { width: 180px; justify-self: center; } }
+
+.downloads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 760px) { .downloads { grid-template-columns: 1fr; } }
+.dl { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.dl h2 { font-size: 16px; margin: 0; }
+.dl p { margin: 0; color: var(--muted); font-size: 15px; flex: 1; }
+.dl small { color: var(--muted); font-size: 13px; }
+
+.button { display: inline-block; text-align: center; padding: 10px 16px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; text-decoration: none; }
+.unavailable { color: var(--muted); font-size: 15px; }
+
+.steps, .features { margin: 0; padding-left: 22px; }
+.steps li, .features li { margin: 8px 0; }
+.features { list-style: disc; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 18px 0 0; color: var(--muted); }
+
+.oss p { margin: 0 0 14px; }
+footer { padding: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; text-align: center; }

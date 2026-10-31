@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {presentMessage,claudeStatus} from '../src/presentation.mjs';
+import {Store} from '../src/store.mjs';
+import {Providers} from '../src/providers.mjs';
+import {pendingQuestions} from '../src/questions.mjs';
+function fixture(t){const dir=mkdtempSync(join(tmpdir(),'agentremote-presentation-'));const store=new Store(dir);const session={id:'claude:fixture',provider:'claude',providerId:'fixture',status:'idle',control:'managed'};store.save(session);const providers=new Providers(store);t.after(()=>{providers.claude.clear();providers.close();store.close();rmSync(dir,{recursive:true,force:true});});return{store,providers,session};}
+test('open desktop process is not confused with active work',()=>{assert.equal(claudeStatus({status:'idle'}),'idle');assert.equal(claudeStatus({status:'busy'}),'running');assert.equal(claudeStatus({status:'waiting'}),'waiting');});
+test('provider JSON and thinking records are not shown as assistant prose',()=>{assert.equal(presentMessage({kind:'thinking',text:'internal'}),null);const result=presentMessage({id:'t',kind:'tool_use',text:JSON.stringify({type:'tool_use',name:'Read',input:{file_path:'/tmp/file'}})});assert.equal(result.kind,'Reading file');assert.equal(result.text,'/tmp/file');assert.equal(result.role,'tool');const output=presentMessage({kind:'tool_result',text:JSON.stringify({type:'tool_result',content:[{type:'text',text:'hello'}]})});assert.equal(output.text,'hello');});
+test('native Claude questions pause, preserve multiselect and return original questions with answers',async t=>{const{store,providers,session}=fixture(t);const sent=[];const child={exitCode:null,killed:false,stdin:{write:v=>sent.push(JSON.parse(v))}};providers.claude.set(session.id,child);const input={questions:[{question:'Which outputs?',header:'Outputs',multiSelect:true,options:[{label:'Table',description:'Rows'},{label:'Chart',description:'Graph'}]}]};providers.claudeEvent(session,{type:'control_request',request_id:'req',request:{subtype:'can_use_tool',tool_name:'AskUserQuestion',tool_use_id:'tool',input}});assert.equal(sent.length,0);assert.equal(store.session(session.id).status,'waiting');const q=pendingQuestions(store,session.id)[0];assert.equal(q.questions[0].multiSelect,true);await providers.answer(session.id,q.id,{'0':'Table, Chart'});assert.deepEqual(sent[0],{type:'control_response',response:{subtype:'success',request_id:'req',response:{behavior:'allow',updatedInput:{...input,answers:{'Which outputs?':'Table, Chart'}}}}});assert.equal(store.session(session.id).status,'running');});
+test('desktop transcript questions are visible but cannot fork the live session by answering',async t=>{const{store,providers,session}=fixture(t);const external={...session,control:'external-live'};store.save(external);const question={type:'tool_use',id:'ask',name:'AskUserQuestion',input:{questions:[{question:'Which?',options:[{label:'A'},{label:'B'}]}]}};providers.syncClaudeQuestions(external,[{message:{content:[question]}}]);const q=pendingQuestions(store,session.id)[0];assert.equal(q.readOnly,true);await assert.rejects(providers.answer(session.id,q.id,{'0':'A'}),/desktop Claude/);providers.syncClaudeQuestions(external,[{message:{content:[question]}},{message:{content:[{type:'tool_result',tool_use_id:'ask',content:'A'}]}}]);assert.equal(pendingQuestions(store,session.id).length,0);});
+test('background-task notices recorded as user turns show as a status line',()=>{
+  const text='<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>Background command "Build" completed (exit code 0)</summary>\n</task-notification>';
+  const shown=presentMessage({id:'n',role:'user',kind:'text',text});
+  assert.equal(shown.role,'system');assert.equal(shown.kind,'status');assert.equal(shown.text,'Background task: Background command "Build" completed (exit code 0)');
+  assert.equal(presentMessage({id:'u',role:'user',kind:'text',text:'Explain <task-notification> tags'}).role,'user');
+});

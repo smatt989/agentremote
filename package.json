@@ -1,0 +1,26 @@
+{
+  "name": "agent-remote",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build:terminal": "xcrun clang -O2 macos/TerminalHost/main.c -o desktop/TerminalHost",
+    "pretest": "npm run build:terminal",
+    "start": "node desktop/src/server.mjs",
+    "pair": "node desktop/src/admin.mjs pair",
+    "devices": "node desktop/src/admin.mjs devices",
+    "configure": "node desktop/src/admin.mjs configure",
+    "relay": "node relay/src/server.mjs",
+    "test": "node --test desktop/test/*.test.mjs relay/test/*.test.mjs"
+  },
+  "dependencies": {
+    "@xterm/addon-serialize": "0.14.0",
+    "@xterm/headless": "6.0.0",
+    "@xterm/xterm": "6.0.0",
+    "qrcode": "1.5.4",
+    "ws": "8.21.3"
+  }
+}

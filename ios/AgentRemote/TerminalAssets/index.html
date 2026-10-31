@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'"><link rel="stylesheet" href="xterm.css"><style>body{margin:0;background:#101318}#terminal{padding:6px;width:560px}</style></head><body><div id="terminal"></div><script src="xterm.js"></script><script>
+const term=new Terminal({cols:80,rows:28,scrollback:500,fontSize:11,disableStdin:true,screenReaderMode:true,theme:{background:'#101318'}});term.open(document.getElementById('terminal'));
+function dimensions(f){if(Number.isInteger(f.cols)&&Number.isInteger(f.rows)&&f.cols>=2&&f.cols<=1000&&f.rows>=2&&f.rows<=500){term.resize(f.cols,f.rows);document.getElementById("terminal").style.width=Math.ceil(f.cols*7+12)+"px";}}
+window.frame=function(f){dimensions(f);if(f.reset)term.reset();for(const chunk of f.data.split('.'))if(chunk)term.write(Uint8Array.from(atob(chunk),c=>c.charCodeAt(0)));};
+window.applyFrame=async function(f){
+ dimensions(f);
+ if(f.reset)term.reset();
+ for(const chunk of f.data.split('.'))if(chunk)await new Promise(resolve=>term.write(Uint8Array.from(atob(chunk),c=>c.charCodeAt(0)),resolve));
+ const b=term.buffer.active;
+ const line=b.getLine(b.baseY+b.cursorY);
+ const text=line?line.translateToString(true):'';
+ // Require the actual input cursor to be at a blank Claude prompt. Never erase
+ // or append to a desktop draft, or accidentally answer an approval dialog.
+ let ready=/^\s*\u276f\s*$/.test(text);
+ for(let y=b.cursorY+1;ready&&y<term.rows;y++){
+  const below=b.getLine(b.baseY+y)?.translateToString(true)||'';
+  if(/^\s*[-\u2500\u2501]{3,}/.test(below))break;
+  if(below.trim())ready=false;
+ }
+ return {ready,prompt:text.startsWith('\u276f')};
+};
+</script></body></html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f5">
+  <title>Agent Remote — Privacy Policy</title>
+  <meta name="description" content="What the Agent Remote iPhone and Mac apps store, what travels through the relay, and what never leaves your devices.">
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="shell">
+    <header>
+      <a class="brand" href="./" aria-label="Agent Remote home"><span class="brand-icon"><img src="assets/mark.svg" width="30" height="30" alt=""></span>Agent Remote</a>
+      <nav aria-label="Main navigation"><a href="./#details">How it works</a><a href="support.html">Support</a><a href="privacy.html" aria-current="page">Privacy</a></nav>
+    </header>
+    <main id="main">
+      <section class="use-case" aria-labelledby="privacy-title">
+        <p class="eyebrow">PRIVACY POLICY · EFFECTIVE SEPTEMBER 10, 2026</p>
+        <h2 id="privacy-title">Your agents run on your Mac.<br>So does your data.</h2>
+        <p>Agent Remote is a Mac app and an iPhone app made by Matthew Slotkin (“we”). The iPhone app is a remote control for coding agents that run on a Mac you own. This policy explains what each app stores, what passes through our relay, and what we can and cannot see. It is written to match how the software actually works.</p>
+        <p><strong>The short version:</strong> we do not collect your conversations, files, prompts, voice recordings, or account credentials. There are no Agent Remote accounts, no analytics, no advertising, and no tracking. Your data moves between your iPhone and your Mac end-to-end encrypted; our relay forwards ciphertext it cannot read and keeps no copies.</p>
+      </section>
+
+      <section class="details" aria-labelledby="stored-title">
+        <p class="eyebrow">01 / WHAT THE APPS STORE</p>
+        <h2 id="stored-title">On your devices, for you.</h2>
+        <dl class="facts">
+          <div><dt>On your iPhone</dt><dd>The list of Macs you have paired (name and relay route), a per-Mac access token and encryption key in the iOS Keychain (shared only with the app’s own notification extension, which uses the key to decrypt alerts), and your notification preference. Conversation history is fetched from your Mac when you open a conversation and cached only in memory.</dd></div>
+          <div><dt>On your Mac</dt><dd>Session history, attachments, the local knowledge base and memory notes derived from your conversations, device pairings, and the Mac’s own identity key, all under <code>~/Library/Application Support/AgentRemote/</code> with owner-only permissions. Nothing in that folder is uploaded to us.</dd></div>
+          <div><dt>Camera</dt><dd>Used only while you scan a pairing QR code. No images are stored or transmitted.</dd></div>
+          <div><dt>Microphone and speech recognition</dt><dd>Used only when you tap the microphone to dictate a prompt. Transcription uses Apple’s speech recognition, preferring on-device processing where your iPhone supports it; otherwise Apple may process the audio under Apple’s privacy terms. The resulting text is sent to your Mac like any typed message.</dd></div>
+          <div><dt>Photos and files</dt><dd>Only the items you explicitly attach are sent, encrypted, to your Mac. Files your agent produces can be downloaded to your phone and shared through the iOS share sheet at your request.</dd></div>
+        </dl>
+      </section>
+
+      <section class="details" aria-labelledby="transit-title">
+        <p class="eyebrow">02 / WHAT PASSES THROUGH THE RELAY</p>
+        <h2 id="transit-title">A courier that cannot open the envelope.</h2>
+        <p>Your iPhone and Mac reach each other through a relay service we operate so that you do not need a VPN, port forwarding, or a fixed address. When you pair, the two devices agree on a shared secret using X25519 key agreement and HKDF. Every request, reply, and file is then encrypted on the sending device with AES-256-GCM and decrypted only on the receiving device.</p>
+        <dl class="facts">
+          <div><dt>The relay can see</dt><dd>Routing identifiers (random per-pairing values, not tied to your identity), the IP addresses of connecting devices, connection timing, and message sizes.</dd></div>
+          <div><dt>The relay cannot see</dt><dd>Message text, files, session names, project paths, voice transcripts, your provider credentials, or your encryption keys.</dd></div>
+          <div><dt>Retention</dt><dd>The relay has no database and stores no message contents. Undelivered ciphertext is held briefly in memory and discarded. Our hosting provider (Railway, United States) may retain standard connection logs for its own operational purposes; we do not use them to identify or profile you.</dd></div>
+        </dl>
+      </section>
+
+      <section class="details" aria-labelledby="providers-title">
+        <p class="eyebrow">03 / MODEL PROVIDERS AND NOTIFICATIONS</p>
+        <h2 id="providers-title">Other parties, and when they are involved.</h2>
+        <dl class="facts">
+          <div><dt>Anthropic and OpenAI</dt><dd>Agent Remote drives the Claude Code and Codex command-line tools already installed and signed in on your Mac. Your prompts, relevant files, and the excerpts used to build your local knowledge base are sent from <em>your Mac</em> to <em>your</em> provider account under that provider’s terms and privacy policy. The iPhone app never talks to a model provider directly, and we never receive those requests.</dd></div>
+          <div><dt>Apple Push Notifications</dt><dd>If you turn on reply notifications, your iPhone’s push token is sent, encrypted, to your Mac. When a reply finishes or your agent asks a question, your Mac asks Apple to deliver an alert, either with an Apple Push key you configure or through the Agent Remote relay’s sender. The readable part of that alert is always generic (“Your agent has replied.” or “Your agent has a question for you.”) plus opaque Mac and session identifiers. The useful details (the chat’s title, the first line of the reply or the question, and up to three answer choices) are encrypted on your Mac with the same per-device key that protects your conversations, so Apple and the relay see only ciphertext. Only your iPhone can decrypt them: its notification extension does so on the device, using the key stored in the iOS Keychain, and if anything fails it shows the generic alert instead. If you answer or reply from a notification, the text goes to your Mac over the same end-to-end encrypted connection the app uses.</dd></div>
+          <div><dt>No one else</dt><dd>There are no analytics, crash-reporting, advertising, or attribution SDKs in either app, and we do not sell or share data.</dd></div>
+        </dl>
+      </section>
+
+      <section class="details" aria-labelledby="control-title">
+        <p class="eyebrow">04 / YOUR CONTROL</p>
+        <h2 id="control-title">Revoke, delete, forget.</h2>
+        <dl class="facts">
+          <div><dt>Remove a phone</dt><dd>Revoke any paired device from the Mac; its token and key stop working immediately without affecting other devices.</dd></div>
+          <div><dt>Delete conversations and knowledge</dt><dd>Deleting a session on either device removes its saved history, attachments, and derived knowledge from your Mac. You can also forget individual learned notes. Deleting local data cannot recall information already sent to your model provider.</dd></div>
+          <div><dt>Stop everything</dt><dd>Quit Agent Remote on the Mac and remote access ends. Uninstalling the iPhone app removes its stored pairings and Keychain items.</dd></div>
+          <div><dt>Children</dt><dd>Agent Remote is a developer tool and is not directed to children under 13. We do not knowingly collect personal information from children.</dd></div>
+          <div><dt>Changes</dt><dd>If this policy changes, the new version will be posted at this address with an updated effective date.</dd></div>
+          <div><dt>Contact</dt><dd>Questions about privacy: <a href="https://github.com/smatt989/agentremote/issues">open an issue on GitHub</a>. To report a security problem privately, use <a href="https://github.com/smatt989/agentremote/security/advisories/new">Report a vulnerability</a>.</dd></div>
+        </dl>
+      </section>
+    </main>
+    <footer><a class="brand" href="./"><span class="brand-icon"><img src="assets/mark.svg" width="24" height="24" alt=""></span>Agent Remote</a><p>Your agents. Your work. Your knowledge.</p><a href="support.html">Support</a><a href="privacy.html">Privacy</a></footer>
+  </div>
+</body>
+</html>

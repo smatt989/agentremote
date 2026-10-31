@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f5">
+  <title>Agent Remote — Support</title>
+  <meta name="description" content="Set up Agent Remote, pair your iPhone with your Mac, and fix common connection problems.">
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="shell">
+    <header>
+      <a class="brand" href="./" aria-label="Agent Remote home"><span class="brand-icon"><img src="assets/mark.svg" width="30" height="30" alt=""></span>Agent Remote</a>
+      <nav aria-label="Main navigation"><a href="./#details">How it works</a><a href="support.html" aria-current="page">Support</a><a href="privacy.html">Privacy</a></nav>
+    </header>
+    <main id="main">
+      <section class="use-case" aria-labelledby="support-title">
+        <p class="eyebrow">SUPPORT</p>
+        <h2 id="support-title">Get connected.<br>Stay connected.</h2>
+        <p>Agent Remote has two parts: a free Mac app that runs your Claude Code and Codex sessions, and the iPhone app that controls them. Most questions come down to pairing the two and keeping the Mac reachable. If this page does not solve it, <a href="https://github.com/smatt989/agentremote/issues">open an issue on GitHub</a>. Report security problems privately with <a href="https://github.com/smatt989/agentremote/security/advisories/new">Report a vulnerability</a>. Include the Mac app version, shown at the bottom of the Agent Remote window.</p>
+      </section>
+
+      <section class="details" aria-labelledby="setup-title">
+        <p class="eyebrow">01 / SETUP</p>
+        <h2 id="setup-title">Pair in under a minute.</h2>
+        <dl class="facts">
+          <div><dt>What you need</dt><dd>A Mac on macOS 13.5 or later, an iPhone on iOS 17 or later, and a Claude Code or Codex account. Provider usage and billing stay with your provider.</dd></div>
+          <div><dt>1. Install the Mac app</dt><dd>Open the Agent Remote DMG, drag the app to Applications, and open it. Use its Claude/Codex setup buttons if the command-line tools are missing or need sign-in.</dd></div>
+          <div><dt>2. Show a pairing code</dt><dd>In the Mac app, click <strong>Show pairing code</strong>. The QR code is single-use and expires after five minutes; treat it like a password while it is on screen.</dd></div>
+          <div><dt>3. Scan from the iPhone</dt><dd>In the iPhone app, choose <strong>Pair this iPhone → Scan QR code</strong>, confirm the Mac’s name, and tap <strong>Pair Mac</strong>. Your Mac appears in Chats whenever it is awake, online, and running Agent Remote.</dd></div>
+          <div><dt>Optional</dt><dd>Enable <strong>Start at login</strong> on the Mac so remote access survives a restart. Enable <strong>Terminal Access</strong> to share sessions you start in Terminal with your phone.</dd></div>
+        </dl>
+      </section>
+
+      <section class="details" aria-labelledby="fix-title">
+        <p class="eyebrow">02 / TROUBLESHOOTING</p>
+        <h2 id="fix-title">When something doesn’t connect.</h2>
+        <dl class="facts">
+          <div><dt>“Mac unavailable”</dt><dd>The Mac must be awake, online, and running Agent Remote (the Agent Remote window on the Mac says <em>Online</em>). Sleep, a closed lid, or quitting the app all end remote access. Check System Settings → Energy to prevent sleep while plugged in.</dd></div>
+          <div><dt>Pairing code rejected</dt><dd>Codes expire after five minutes and work once. Click <strong>Show pairing code</strong> again for a fresh one.</dd></div>
+          <div><dt>Session won’t accept messages</dt><dd>A conversation owned by another client (for example a Claude session running in a separate terminal) is read-only until that client exits. Exit it, then resume from Agent Remote.</dd></div>
+          <div><dt>No reply notifications on the lock screen</dt><dd>Alerts appear while the app is open as soon as you turn notifications on. Lock-screen alerts are not yet available for every Mac; the Notifications screen says whether yours has them.</dd></div>
+          <div><dt>Camera or microphone not working</dt><dd>Check iPhone Settings → Agent Remote and allow Camera (pairing), Microphone and Speech Recognition (dictation).</dd></div>
+          <div><dt>Remove a phone</dt><dd>In Terminal on the Mac, run <code>cd "/Applications/Agent Remote.app/Contents/Resources" &amp;&amp; runtime/arm64/bin/node service/desktop/src/admin.mjs devices</code> to list paired devices, then the same command with <code>revoke DEVICE_ID</code> in place of <code>devices</code>. On an Intel Mac, use <code>runtime/x64</code>.</dd></div>
+        </dl>
+      </section>
+
+      <section class="details" aria-labelledby="safety-title">
+        <p class="eyebrow">03 / GOOD TO KNOW</p>
+        <h2 id="safety-title">A paired phone is a key to your Mac.</h2>
+        <p>Sessions created from Agent Remote run with broad access on your Mac and without the usual agent approval prompts. Pair only devices you trust, keep your phone locked, and revoke a device you lose. See <a href="./#details">how your connection works</a> and the <a href="privacy.html">privacy policy</a> for what is and isn’t visible to the relay.</p>
+      </section>
+    </main>
+    <footer><a class="brand" href="./"><span class="brand-icon"><img src="assets/mark.svg" width="24" height="24" alt=""></span>Agent Remote</a><p>Your agents. Your work. Your knowledge.</p><a href="support.html">Support</a><a href="privacy.html">Privacy</a></footer>
+  </div>
+</body>
+</html>

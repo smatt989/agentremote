@@ -1,0 +1,17 @@
+node_modules/
+.DS_Store
+build/
+*.xcuserstate
+xcuserdata/
+.env
+.env.*
+!.env.example
+.runtime/
+desktop/TerminalHost
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.p12
+*.mobileprovision
+__pycache__/
+private/
