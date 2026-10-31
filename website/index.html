@@ -21,52 +21,53 @@
     <section class="hero">
       <div>
         <h1>Claude Code and Codex run on your Mac. Drive them from your phone.</h1>
-        <p class="lead">Agent Remote is a small Mac app that keeps your coding agents running on your own machine, with your files, tools and logins, and lets you start, follow and answer them from your iPhone or another computer.</p>
+        <p class="lead">Agent Remote is a small Mac app that keeps your coding agents running on your own machine, with your files, tools and logins, lets you start, follow and answer them from your iPhone or another computer, and keeps a wiki of your work so every new session starts with context.</p>
         <p class="meta">Free · MIT licensed · End-to-end encrypted · No accounts</p>
       </div>
       <img class="shot" src="assets/screenshots/iphone-sessions.png" alt="The iPhone app listing Claude and Codex sessions running on a Mac" width="402" height="874">
     </section>
 
-    <section id="download" class="steps" aria-label="Get started in three steps">
+    <section id="download" class="steps" aria-label="How it works, in three steps">
       <div class="step">
         <div class="num">Step 1</div>
         <div class="body">
-          <h2>Install Agent Remote on your Mac</h2>
-          <p>Open the download, drag <b>Agent Remote</b> to Applications and open it. In its window, click <b>Install Claude</b> or <b>Install Codex</b> (or <b>Sign in</b> if you already use them). This Mac is where your agents run.</p>
+          <h2>Set up your Mac</h2>
+          <p>Install Agent Remote on the Mac that does the work, and sign in to Claude Code or Codex from its window. Your agents run there, with your files, tools and logins.</p>
           <div class="actions">{{macAction}}<small>{{macNote}}</small></div>
         </div>
       </div>
       <div class="step">
         <div class="num">Step 2</div>
         <div class="body">
-          <h2>Get the app on your phone or laptop</h2>
-          <p>Install the iPhone app, or Agent Remote Client on another Mac. Either one works as the remote.</p>
+          <h2>Use your phone and other laptops to share sessions</h2>
+          <p>Pair an iPhone or another computer by scanning a QR code. Start sessions, follow replies as they stream, send files and answer prompts from any of them. The same live session is on every device, and in Terminal on the Mac with <code>pickup</code>.</p>
           <div class="actions">{{iphoneAction}}<small>{{iphoneNote}}</small></div>
           <div class="actions">{{clientAction}}<small>{{clientNote}}</small></div>
         </div>
       </div>
       <div class="step">
         <div class="num">Step 3</div>
-        <div class="body">
-          <h2>Pair them and start a task</h2>
-          <p>On the Mac, click <b>Show pairing code</b>. On the iPhone, tap <b>Pair this iPhone → Scan QR code</b>, scan it and tap <b>Pair Mac</b> (in Agent Remote Client, use <b>Pair another Mac</b> in the gear menu). Then tap the compose button, pick Claude or Codex and a folder, and send your first task.</p>
+        <div class="body with-shot">
+          <div>
+            <h2>A swarm of agents maintains a local wiki, so context is never lost</h2>
+            <p>In the background, agents turn your conversations into a wiki about you and your work. A steward keeps each article current, curators reorganize subjects, a librarian finds duplicates and missing links, a verifier checks claims against your files, and a reviewer approves every edit.</p>
+            <p>Every new Claude or Codex session searches it, so you stop re-explaining your project. Read and correct it on your phone or Mac. It is stored on your Mac; the editing uses your Claude or Codex account.</p>
+          </div>
+          <img class="shot small" src="assets/screenshots/iphone-knowledge.png" alt="The knowledge wiki on iPhone" width="402" height="874">
         </div>
       </div>
 <pre class="diagram" aria-label="Your iPhone or laptop talks to your Mac through an encrypted relay">
 iPhone / laptop  ⇄  relay (forwards ciphertext)  ⇄  your Mac
-                                                    └ Claude Code, Codex,
+                                                    └ Claude Code, Codex, the wiki,
                                                       your files and tools</pre>
     </section>
 
     <section>
-      <h2>What you get</h2>
+      <h2>Also included</h2>
       <ul class="features">
-        <li>Several Claude and Codex sessions running in parallel, in one list.</li>
-        <li>One live session shared between Terminal on the Mac and your phone.</li>
         <li>Push notifications when an agent replies or needs an answer.</li>
         <li>Questions, permission prompts and folder-trust prompts as tap-to-answer cards.</li>
-        <li>Files, photos and screenshots in both directions, and voice dictation.</li>
-        <li>A local knowledge base built from your conversations, shared by later sessions.</li>
+        <li>Photos, files and screenshots in both directions, and voice dictation.</li>
         <li>Desktop apps that update themselves.</li>
       </ul>
     </section>
