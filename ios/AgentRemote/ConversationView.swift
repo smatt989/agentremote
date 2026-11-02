@@ -27,6 +27,7 @@ struct ConversationView: View {
         self.host = host
         _session = State(initialValue: session)
         _queueUnsupported = State(initialValue: QueueSupport.unsupported.contains(host.id))
+        if session.id.hasPrefix(AppState.pendingPrefix) { _historyLoaded = State(initialValue: true); _cacheChecked = State(initialValue: true); _startedNew = State(initialValue: true) }
         if let cached = LocalCache.remembered(host: host.id, session: session.id) {
             _messages = State(initialValue: cached.messages)
             _artifacts = State(initialValue: cached.artifacts)
@@ -40,6 +41,8 @@ struct ConversationView: View {
         }
     }
     @State private var cacheChecked = false
+    /// Opened from the new-chat form, so the composer takes focus.
+    @State private var startedNew = false
     @State private var queueUnsupported = false
     @State private var showFiles = false
     @Environment(\.scenePhase) private var phase
@@ -97,6 +100,8 @@ struct ConversationView: View {
     private var api: API { API(host: host) }
     private var path: String { API.sessionPath(session.id) }
     private var unavailable: Bool { session.control == "external-live" }
+    /// Opened before the Mac has made the chat (AppState.startChat); `ready()` switches to the Mac's session.
+    private var provisional: Bool { session.id.hasPrefix(AppState.pendingPrefix) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -280,15 +285,15 @@ struct ConversationView: View {
                 Menu {
                     Toggle("Show tool activity", systemImage: "wrench.and.screwdriver", isOn: $showToolActivity)
                     if session.terminal == true { Button("Terminal controls", systemImage: "terminal") { showTerminalControls = true } }
-                    Button("Model, effort & usage", systemImage: "slider.horizontal.3") { showSessionControls = true }
+                    Button("Model, effort & usage", systemImage: "slider.horizontal.3") { showSessionControls = true }.disabled(provisional)
                     if !state.renameUnsupported.contains(host.id) {
-                        Button("Rename", systemImage: "pencil") { renameText = session.title; renaming = true }.disabled(operating)
+                        Button("Rename", systemImage: "pencil") { renameText = session.title; renaming = true }.disabled(operating || provisional)
                     }
                     Toggle("Speak replies", isOn: $autoSpeak)
                     Button("Stop speaking") { voice.stopSpeaking() }
-                    Button("Interrupt turn", systemImage: "stop.circle") { Task { await stop(end: false) } }.disabled(unavailable || operating)
-                    Button("End chat", systemImage: "xmark.circle") { Task { await stop(end: true) } }.disabled(unavailable || operating)
-                    Button("Delete chat", systemImage: "trash", role: .destructive) { confirmDelete = true }.disabled(unavailable || operating)
+                    Button("Interrupt turn", systemImage: "stop.circle") { Task { await stop(end: false) } }.disabled(unavailable || operating || provisional)
+                    Button("End chat", systemImage: "xmark.circle") { Task { await stop(end: true) } }.disabled(unavailable || operating || provisional)
+                    Button("Delete chat", systemImage: "trash", role: .destructive) { confirmDelete = true }.disabled(unavailable || operating || provisional)
                 } label: { Image(systemName: "ellipsis.circle") }
             }
         }
@@ -317,7 +322,12 @@ struct ConversationView: View {
             await loadCache()
             // iOS hands first responder back on return to the app, which reopened the keyboard over the chat.
             guard phase == .active else { if voice.recording { appendDictation(voice.transcript) }; voice.stop(); composerFocused = false; saveCache(force: true); return }
-            while !Task.isCancelled { await refresh(); do { try await Task.sleep(for: .seconds(1)) } catch { break } }
+            while !Task.isCancelled { if await ready() { await refresh() }; do { try await Task.sleep(for: .seconds(1)) } catch { break } }
+        }
+        .task {
+            // iOS drops focus requested while the new-chat sheet is still closing.
+            guard startedNew, !Platform.isMac else { return }
+            do { try await Task.sleep(for: .milliseconds(450)); composerFocused = true } catch {}
         }
         .onAppear { isVisible = true; state.visibleSessionID = session.id }
         .onDisappear { isVisible = false; composerFocused = false; saveCache(force: true); if state.visibleSessionID == session.id { state.visibleSessionID = nil }; voice.stop(); voice.stopSpeaking() }
@@ -388,7 +398,7 @@ struct ConversationView: View {
             if voice.recording { Text(voice.transcript.isEmpty ? "Listening…" : voice.transcript).font(.callout).foregroundStyle(.mint) }
             Group {
                 if Platform.isMac {
-                    MacComposerField(text: $prompt, disabled: sending) { if canSend { Task { await send() } } }
+                    MacComposerField(text: $prompt, disabled: sending, focusOnAppear: startedNew) { if canSend { Task { await send() } } }
                         .overlay(alignment: .topLeading) { if prompt.isEmpty { Text(placeholder == "Message your Mac…" ? "Message your Mac… (Return to send, Shift-Return for a new line)" : placeholder).foregroundStyle(.tertiary).allowsHitTesting(false) } }
                 } else {
                     TextField(placeholder, text: $prompt, axis: .vertical).lineLimit(1...6).disabled(sending)
@@ -422,6 +432,22 @@ struct ConversationView: View {
                 }
             }.padding(.horizontal, 4)
         }.padding().background(.bar)
+    }
+    /// For a chat opened before the Mac made it: waits for the Mac's session and switches to it. A failed start is
+    /// shown as the error and tried again only on `retry` (sending or attaching), so polling does not repeat it.
+    private func ready(retry: Bool = false) async -> Bool {
+        guard provisional else { return true }
+        let id = session.id
+        do {
+            let created = try await state.createdChat(id, retry: retry)
+            guard session.id == id else { return true }
+            if state.visibleSessionID == id { state.visibleSessionID = created.id }
+            session = created; error = nil
+            return true
+        } catch is CancellationError { return false } catch {
+            self.error = "Couldn’t start this chat on \(host.name): \(error.localizedDescription) Send again to retry."
+            return false
+        }
     }
     private func refresh() async {
         do {
@@ -468,7 +494,7 @@ struct ConversationView: View {
     }
     /// Writes the snapshot off the main thread, at most every 5 s while a reply streams (always when leaving).
     private func saveCache(force: Bool = false) {
-        guard historyLoaded, !messages.isEmpty, force || Date().timeIntervalSince(cacheSavedAt) > 5 else { return }
+        guard historyLoaded, !provisional, !messages.isEmpty, force || Date().timeIntervalSince(cacheSavedAt) > 5 else { return }
         cacheSavedAt = Date()
         let snapshot = ConversationSnapshot(session: session, messages: messages, artifacts: artifacts, cursor: cursor, artifactsHash: artifactsHash, imagesHash: imagesHash, earlierCursor: earlierCursor, hasOlder: hasOlder)
         let hostID = host.id
@@ -510,6 +536,8 @@ struct ConversationView: View {
         followLatest = true; prompt = ""; attached = []; error = nil
         // Put the keyboard away so the reply can be read; tapping the composer brings it back.
         if !Platform.isMac { composerFocused = false }
+        // A first message typed before the Mac made the chat shows as "Sending…" until it has.
+        guard await ready(retry: true) else { outgoing = nil; if prompt.isEmpty { prompt = text; attached = files }; return }
         do {
             if session.terminal == true {
                 try await terminalSender.sendPrompt(text, requestID: requestID, api: api, path: path)
@@ -559,6 +587,7 @@ struct ConversationView: View {
     }
     private func upload(_ data: Data, name: String) async throws {
         guard data.count <= 20_000_000 else { throw AppError.message("Choose a file smaller than 20 MB.") }
+        guard await ready(retry: true) else { return }
         let artifact = try await api.post(path + "/artifacts", body: ["name": name, "base64": data.base64EncodedString()], as: Artifact.self)
         attached.append(artifact)
     }
@@ -1187,10 +1216,12 @@ private struct UserScrollTracking: ViewModifier {
 struct MacComposerField: UIViewRepresentable {
     @Binding var text: String
     let disabled: Bool
+    var focusOnAppear = false
     let submit: () -> Void
     func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
     func makeUIView(context: Context) -> ReturnSendingTextView {
         let view = ReturnSendingTextView()
+        view.focusWhenShown = focusOnAppear
         view.font = .preferredFont(forTextStyle: .body); view.adjustsFontForContentSizeCategory = true
         view.backgroundColor = .clear; view.textContainerInset = .zero; view.textContainer.lineFragmentPadding = 0
         view.isScrollEnabled = false; view.delegate = context.coordinator
@@ -1218,6 +1249,13 @@ struct MacComposerField: UIViewRepresentable {
 }
 final class ReturnSendingTextView: UITextView {
     var submit: (() -> Void)?
+    var focusWhenShown = false
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard focusWhenShown, window != nil else { return }
+        focusWhenShown = false
+        DispatchQueue.main.async { [weak self] in _ = self?.becomeFirstResponder() }
+    }
     private var swallowed: Set<UIKeyboardHIDUsage> = []
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         if let key = presses.first?.key, [.keyboardReturnOrEnter, .keypadEnter].contains(key.keyCode), markedTextRange == nil {

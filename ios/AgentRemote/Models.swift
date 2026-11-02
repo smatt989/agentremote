@@ -90,24 +90,32 @@ struct PairResponse: Decodable { var token: String; var hostId: String; var name
 struct EmptyResponse: Decodable {}
 struct ReadResponse: Decodable { var session: Session }
 /// `GET /agents` on newer Macs: which agent CLIs are installed there, and signed in (nil when unknown).
-struct AgentAvailability: Decodable, Identifiable, Hashable { var id: String; var name: String; var installed: Bool; var signedIn: Bool? }
+struct AgentAvailability: Codable, Identifiable, Hashable { var id: String; var name: String; var installed: Bool; var signedIn: Bool? }
 struct AgentAvailabilityList: Decodable { var agents: [AgentAvailability] }
 /// `GET /folders/recent` on newer Macs: the home folder and recently used working folders (`lastUsed` is epoch ms).
-struct RecentFolder: Decodable, Hashable { var path: String; var label: String; var lastUsed: Double }
-struct RecentFolders: Decodable { var home: String; var folders: [RecentFolder] }
+struct RecentFolder: Codable, Hashable { var path: String; var label: String; var lastUsed: Double }
+struct RecentFolders: Codable, Equatable { var home: String; var folders: [RecentFolder] }
 /// `POST /pairing/invite` on newer Macs: a one-time `agentremote://pair#…` link for another device.
 struct PairingInvite: Decodable {
     var uri: String; var expires: Double
     /// Epoch ms like the rest of the service; tolerate seconds too.
     var expiresAt: Date { Date(timeIntervalSince1970: expires > 100_000_000_000 ? expires / 1000 : expires) }
 }
-struct ModelDefaults: Codable {
+struct ModelDefaults: Codable, Equatable {
     var codex = ""
     var claude = ""
     var local = ""
     var localProvider = "ollama"
     func model(for provider: String) -> String { provider == "codex" ? codex : provider == "claude" ? claude : local }
     var body: [String: Any] { ["codex": codex, "claude": claude, "local": local, "localProvider": localProvider] }
+}
+/// What the new-chat form offers for one Mac. Kept on the device so the form opens filled in at once; it is fetched
+/// again in the background each time. `agents` and `recent` are nil for Macs without those routes.
+struct NewChatOptions: Codable, Equatable {
+    var defaults = ModelDefaults()
+    var agents: [AgentAvailability]?
+    var recent: RecentFolders?
+    var catalogs: [String: AgentModelCatalog] = [:]
 }
 extension Session {
     var deletionMessage: String {
@@ -352,6 +360,7 @@ struct API {
         selectedHostID = hosts.first?.id
         // Show the last list right away; refresh() brings it up to date.
         if let host, let cached = LocalCache.load(SessionList.self, host: host.id, key: "sessions") { sessions = cached.sessions; warnings = cached.warnings; claudeAuth = cached.claudeAuth }
+        if let host { chatOptions[host.id] = LocalCache.load(NewChatOptions.self, host: host.id, key: "new-chat") }
         ReplyNotifications.shared.state = self
     }
     func pair(code: String) async throws {
@@ -359,7 +368,7 @@ struct API {
         let (response, secret) = try await EncryptedRelay.pair(invite, name: Platform.deviceName)
         try Keychain.put(response.token, host: response.hostId)
         try Keychain.put(secret.base64EncodedString(), host: response.hostId + "/e2e")
-        LocalCache.clear(host: response.hostId); sessionsETag[response.hostId] = nil
+        LocalCache.clear(host: response.hostId); sessionsETag[response.hostId] = nil; chatOptions[response.hostId] = nil
         let host = Host(id: response.hostId, name: response.name, endpoint: invite.relay, transport: "relay", relayHost: invite.host, deviceId: response.deviceId)
         hosts.removeAll { $0.id == host.id }; hosts.append(host); selectedHostID = host.id
         UserDefaults.standard.set(try JSONEncoder().encode(hosts), forKey: "hosts")
@@ -371,7 +380,7 @@ struct API {
         let provisional = Host(id: UUID().uuidString, name: "Mac", endpoint: trimmed)
         let response = try await API(host: provisional).post("/pair", body: ["code": code.trimmingCharacters(in: .whitespacesAndNewlines), "name": "iPhone"], as: PairResponse.self)
         try Keychain.put(response.token, host: response.hostId)
-        LocalCache.clear(host: response.hostId); sessionsETag[response.hostId] = nil
+        LocalCache.clear(host: response.hostId); sessionsETag[response.hostId] = nil; chatOptions[response.hostId] = nil
         let host = Host(id: response.hostId, name: response.name, endpoint: trimmed)
         hosts.removeAll { $0.id == host.id }; hosts.append(host); selectedHostID = host.id
         UserDefaults.standard.set(try JSONEncoder().encode(hosts), forKey: "hosts")
@@ -395,6 +404,70 @@ struct API {
             throw AppError.message("Renaming needs a newer Agent Remote on \(host.name). Update it on the Mac, then try again.")
         }
     }
+    /// The new-chat form's choices per Mac, so the form opens filled in. `refreshChatOptions` updates them from the Mac.
+    @Published private(set) var chatOptions: [String: NewChatOptions] = [:]
+    private var chatOptionsLoading: Set<String> = []
+    /// Fetches the form's choices (skipped while a fetch for that Mac is in flight). A choice the Mac does not answer
+    /// keeps its previous value; a failed model-defaults request is rethrown after the rest is saved.
+    func refreshChatOptions(_ host: Host) async throws {
+        if chatOptions[host.id] == nil, let cached = LocalCache.load(NewChatOptions.self, host: host.id, key: "new-chat") { chatOptions[host.id] = cached }
+        guard chatOptionsLoading.insert(host.id).inserted else { return }
+        defer { chatOptionsLoading.remove(host.id) }
+        let api = API(host: host), previous = chatOptions[host.id], known = selectedHostID == host.id ? sessions : []
+        async let available = try? api.get("/agents", as: AgentAvailabilityList.self)
+        async let folders = try? api.get("/folders/recent", as: RecentFolders.self)
+        async let claude = api.modelCatalog("claude", sessions: known)
+        async let codex = api.modelCatalog("codex", sessions: known)
+        var failure: Error?, next = previous ?? NewChatOptions()
+        do { next.defaults = try await api.get("/settings/models", as: ModelDefaults.self) } catch { failure = error }
+        if let agents = await available?.agents, !agents.isEmpty { next.agents = agents }
+        if let recent = await folders { next.recent = recent }
+        if let catalog = await claude { next.catalogs["claude"] = catalog }
+        if let catalog = await codex { next.catalogs["codex"] = catalog }
+        if next != previous { chatOptions[host.id] = next; LocalCache.saveInBackground(next, host: host.id, key: "new-chat") }
+        if let failure { throw failure }
+    }
+
+    /// Chats opened before the Mac has made them, by provisional id (`pendingPrefix`). The new-chat form opens the
+    /// chat at once; the conversation waits on `createdChat` before its first request, and sending retries a failure.
+    static let pendingPrefix = "pending:"
+    private struct PendingChat { var body: [String: Any]; var host: Host; var task: Task<Session, Error>?; var failure: Error? }
+    private var pendingChats: [String: PendingChat] = [:]
+    /// Provisional id → the Mac's id, once created (the Mac sidebar keeps the provisional chat selected).
+    @Published private(set) var createdChats: [String: String] = [:]
+    func startChat(_ body: [String: Any], provider: String, title: String, cwd: String, model: String?, host: Host) -> Session {
+        let session = Session(id: Self.pendingPrefix + UUID().uuidString, provider: provider, title: title.isEmpty ? "New chat" : title, cwd: cwd,
+                              status: "idle", updatedAt: Date().timeIntervalSince1970 * 1000, model: model)
+        pendingChats[session.id] = PendingChat(body: body, host: host)
+        _ = creation(session.id, retry: true)
+        return session
+    }
+    private func creation(_ id: String, retry: Bool) -> Task<Session, Error>? {
+        guard var pending = pendingChats[id] else { return nil }
+        if let task = pending.task { return task }
+        if pending.failure != nil, !retry { return nil }
+        let api = API(host: pending.host), body = pending.body, hostID = pending.host.id
+        let task = Task { () throws -> Session in
+            let session = try await api.post("/sessions", body: body, as: Session.self)
+            if self.selectedHostID == hostID { self.sessions.removeAll { $0.id == session.id }; self.sessions.insert(session, at: 0) }
+            return session
+        }
+        pending.task = task; pending.failure = nil; pendingChats[id] = pending
+        return task
+    }
+    /// The Mac's session for a provisional chat. After a failure it throws that failure again unless `retry` is set.
+    func createdChat(_ id: String, retry: Bool) async throws -> Session {
+        guard let task = creation(id, retry: retry) else { throw pendingChats[id]?.failure ?? AppError.message("This chat was not started.") }
+        do {
+            let session = try await task.value
+            createdChats[id] = session.id
+            return session
+        } catch {
+            if pendingChats[id]?.task == task { pendingChats[id]?.task = nil; pendingChats[id]?.failure = error }
+            throw error
+        }
+    }
+
     func refresh() async {
         guard let api else { return }
         let hostID = api.host.id
@@ -428,8 +501,8 @@ struct CompactionState: Codable, Hashable { var state: String; var updatedAt: Do
 struct RateLimitPause: Codable, Hashable { var id: String; var message: String; var resetAt: Double?; var decision: String }
 struct SessionPreferences: Codable { var autoRetry: Bool }
 struct UsageResponse: Decodable { var usage: SessionUsage?; var limits: UsageLimits?; var compaction: CompactionState?; var rateLimit: RateLimitPause?; var preferences: SessionPreferences; var warning: String?; var autoCompaction: String }
-struct AgentModelChoice: Decodable, Identifiable { var id: String; var name: String; var efforts: [String]; var defaultEffort: String? }
-struct AgentModelCatalog: Decodable { var models: [AgentModelChoice]; var note: String? }
+struct AgentModelChoice: Codable, Equatable, Identifiable { var id: String; var name: String; var efforts: [String]; var defaultEffort: String? }
+struct AgentModelCatalog: Codable, Equatable { var models: [AgentModelChoice]; var note: String? }
 
 struct PushStatus: Decodable { var configured: Bool; var enabled: Bool? }
 

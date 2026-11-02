@@ -8,7 +8,6 @@ struct SessionListView: View {
     @State private var pairing = false
     @State private var navigation: [Session] = []
     @State private var selected: Session? // Mac sidebar selection; the iPhone pushes onto `navigation` instead
-    @State private var createdSession: Session?
     @State private var creating = false
     @State private var settings = false
     @State private var memory = false
@@ -58,7 +57,7 @@ struct SessionListView: View {
             }
             .onChange(of: state.sessions.map(\.id)) { old, new in
                 // A chat deleted here or on another device closes instead of showing a stale conversation
-                if let id = selected?.id, old.contains(id), !new.contains(id) { selected = nil }
+                if let id = selected.map({ state.createdChats[$0.id] ?? $0.id }), old.contains(id), !new.contains(id) { selected = nil }
             }
         } else {
             NavigationStack(path: $navigation) { chatList }
@@ -77,7 +76,7 @@ struct SessionListView: View {
                     UsageSummaryLine(usage: usage) { showingUsage = true }
                     ListSearchField(text: $search, prompt: "Search chats")
                 }
-                List(selection: Platform.isMac ? Binding(get: { selected?.id }, set: { id in selected = state.sessions.first { $0.id == id } }) : nil) {
+                List(selection: Platform.isMac ? Binding(get: { selected.map { state.createdChats[$0.id] ?? $0.id } }, set: { id in selected = state.sessions.first { $0.id == id } }) : nil) {
                 if state.host == nil {
                     ContentUnavailableView {
                         Label("Bring your agents along", systemImage: "bubble.left.and.text.bubble.right")
@@ -170,7 +169,8 @@ struct SessionListView: View {
                 Button("OK", role: .cancel) { actionError = nil }
             } message: { Text(actionError ?? "") }
             .navigationDestination(for: Session.self) { session in if let host = state.host { ConversationView(session: session, host: host).toolbar(.hidden, for: .tabBar) } }
-            .sheet(isPresented: $creating, onDismiss: { if let session = createdSession { createdSession = nil; search = ""; open(session) } }) { CreateSessionView { session in createdSession = session } }
+            // The chat opens behind the closing sheet, before the Mac has made it (see AppState.startChat).
+            .sheet(isPresented: $creating) { CreateSessionView { session in search = ""; open(session) } }
             .sheet(isPresented: $memory) { if let host = state.host { MemoryView(host: host) } }
             .sheet(isPresented: $notifications) { ReplyNotificationSettings() }
             .sheet(isPresented: $settings) { if let host = state.host { ModelDefaultsView(host: host) } }
@@ -181,6 +181,7 @@ struct SessionListView: View {
             // Every 5 s while the list is on screen. Under an open iPhone chat, every 30 s instead: enough to keep other
             // chats' unread state and reply alerts current, without a full list poll behind every conversation poll.
             // Returning to the list restarts this task, which refreshes at once. Usage limits follow, at most once a minute.
+            .task(id: state.selectedHostID) { if let host = state.host { try? await state.refreshChatOptions(host) } }
             .task(id: "\(phase)-\(state.selectedHostID ?? "")-\(chatCovers)") {
                 guard phase == .active else { return }
                 let covered = chatCovers
@@ -286,15 +287,18 @@ struct CreateSessionView: View {
     @State private var folder = "" // "" is home, else a recent folder's path or `otherFolder`
     @State private var model = ""
     @State private var localProvider = "ollama"
-    @State private var defaults = ModelDefaults()
-    @State private var agents: [AgentAvailability]? // nil: the Mac has no /agents route, so every agent is offered as before
-    @State private var recent: RecentFolders? // nil: no /folders/recent route, so the folder is typed as before
-    @State private var catalogs: [String: AgentModelCatalog] = [:]
-    @State private var loadingDefaults = true
-    @State private var busy = false
+    @State private var fetched = false
     @State private var error: String?
     @State private var signingIn = false
     private static let otherFolder = "\u{0}other"
+    /// The Mac's choices as last fetched (kept on the device), so the form is ready at once; refreshed on open.
+    private var options: NewChatOptions? { state.host.flatMap { state.chatOptions[$0.id] } }
+    private var defaults: ModelDefaults { options?.defaults ?? ModelDefaults() }
+    private var agents: [AgentAvailability]? { options?.agents } // nil: the Mac has no /agents route, so every agent is offered as before
+    private var recent: RecentFolders? { options?.recent } // nil: no /folders/recent route, so the folder is typed as before
+    private var catalogs: [String: AgentModelCatalog] { options?.catalogs ?? [:] }
+    /// Only the first time a Mac is used: nothing cached yet.
+    private var loadingDefaults: Bool { options == nil && !fetched }
     private var selectedAgent: AgentAvailability? { agents?.first { $0.id == provider } }
     private var recentFolders: [RecentFolder] {
         var seen: Set<String> = [recent?.home ?? ""]
@@ -320,40 +324,25 @@ struct CreateSessionView: View {
                     Text("The agent can use your Mac’s local files, agent configuration, and connected tools.").font(.footnote).foregroundStyle(.secondary)
                 }.accessibilityElement(children: .combine)
                 if let error { Text(error).foregroundStyle(Theme.failure) }
-                Button(busy ? "Starting…" : "Create chat") {
-                    guard let api = state.api else { return }; busy = true
+                Button("Create chat") {
+                    guard let host = state.host else { return }
                     // A blank name lets the Mac name the chat from its first message (older Macs use "New session").
                     var body: [String: Any] = ["provider": provider]
                     let name = title.trimmingCharacters(in: .whitespacesAndNewlines); if !name.isEmpty { body["title"] = name }
                     let path = recent == nil || folder == Self.otherFolder ? cwd.trimmingCharacters(in: .whitespacesAndNewlines) : folder
                     if !path.isEmpty { body["cwd"] = path }; if !model.isEmpty { body["model"] = model }
                     if provider == "local" { body["localProvider"] = localProvider }
-                    Task { do { let session = try await api.post("/sessions", body: body, as: Session.self); state.sessions.removeAll { $0.id == session.id }; state.sessions.insert(session, at: 0); onCreated(session); dismiss() } catch { self.error = error.localizedDescription }; busy = false }
-                }.disabled(busy || loadingDefaults || (provider == "local" && model.isEmpty) || selectedAgent?.installed == false)
+                    onCreated(state.startChat(body, provider: provider, title: name, cwd: path.isEmpty ? "~" : path, model: model.isEmpty ? nil : model, host: host)); dismiss()
+                }.disabled(loadingDefaults || (provider == "local" && model.isEmpty) || selectedAgent?.installed == false)
                 }
             }.navigationTitle("New chat").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .onAppear { apply(options, previous: nil) }
+            .onChange(of: options) { previous, next in apply(next, previous: previous) }
             .task {
-                defer { loadingDefaults = false }
-                guard let api = state.api else { return }
-                async let available = try? api.get("/agents", as: AgentAvailabilityList.self)
-                async let folders = try? api.get("/folders/recent", as: RecentFolders.self)
-                do { defaults = try await api.get("/settings/models", as: ModelDefaults.self); localProvider = defaults.localProvider }
-                catch { self.error = error.localizedDescription }
-                recent = await folders
-                if let list = await available?.agents, !list.isEmpty {
-                    agents = list
-                    // The first agent that is ready to use, preferring Claude.
-                    let ready = list.filter { $0.installed && $0.signedIn != false }
-                    provider = (ready.first { $0.id == "claude" } ?? ready.first ?? list.first { $0.installed })?.id ?? "local"
-                }
-                model = defaults.model(for: provider)
-            }
-            .task {
-                guard let api = state.api else { return }
-                let sessions = state.sessions
-                async let claude = api.modelCatalog("claude", sessions: sessions)
-                async let codex = api.modelCatalog("codex", sessions: sessions)
-                catalogs["claude"] = await claude; catalogs["codex"] = await codex
+                defer { fetched = true }
+                guard let host = state.host else { return }
+                // Offline with choices cached: the form still works, and the chat reports the Mac's error when it starts.
+                do { try await state.refreshChatOptions(host) } catch { if options == nil { self.error = error.localizedDescription } }
             }
             .onChange(of: provider) { _, value in model = defaults.model(for: value) }
             .sheet(isPresented: $signingIn) {
@@ -405,8 +394,21 @@ struct CreateSessionView: View {
         }
     }
     private func reloadAgents() async {
-        guard let api = state.api, let list = try? await api.get("/agents", as: AgentAvailabilityList.self), !list.agents.isEmpty else { return }
-        agents = list.agents
+        guard let host = state.host else { return }
+        try? await state.refreshChatOptions(host)
+    }
+    /// The first agent that is ready to use, preferring Claude.
+    private static func automaticProvider(_ options: NewChatOptions?) -> String {
+        guard let list = options?.agents, !list.isEmpty else { return "claude" }
+        let ready = list.filter { $0.installed && $0.signedIn != false }
+        return (ready.first { $0.id == "claude" } ?? ready.first ?? list.first { $0.installed })?.id ?? "local"
+    }
+    /// Fills in the Mac's defaults, leaving alone any choice already changed from the previous defaults.
+    private func apply(_ next: NewChatOptions?, previous: NewChatOptions?) {
+        guard let next else { return }
+        if previous == nil || provider == Self.automaticProvider(previous) { provider = Self.automaticProvider(next) }
+        if model == (previous?.defaults ?? ModelDefaults()).model(for: provider) { model = next.defaults.model(for: provider) }
+        if localProvider == (previous?.defaults ?? ModelDefaults()).localProvider { localProvider = next.defaults.localProvider }
     }
 }
 
