@@ -83,7 +83,7 @@ export function createPusher({key,keyId,teamId,topics,send=apnsSend,now=()=>Date
 // It deliberately has no database, provider integration, or plaintext payload logger.
 // Limits are per Mac where possible, so one busy Mac cannot crowd out the rest. The daily byte allowance per Mac
 // (requests plus responses) bounds what a shared relay carries; self-hosted relays can raise it.
-export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPerHost=64, maxPendingBytes=256_000_000, hostDailyBytes=2_000_000_000, requestTimeout=50_000, heartbeatInterval=25_000, push=null }={}) {
+export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPerHost=64, maxOutstandingPerClient=16, maxPendingBytes=256_000_000, hostDailyBytes=2_000_000_000, requestTimeout=50_000, heartbeatInterval=25_000, push=null }={}) {
   const hosts=new Map(), pending=new Map(), addresses=new Map(), usage=new Map(); let pendingBytes=0;
   // Bytes carried for one Mac in the current 24-hour window; false once the allowance is used up.
   const charge=(host,bytes)=>{const t=Date.now();let u=usage.get(host);if(!u || t>u.until){u={bytes:0,until:t+86_400_000};usage.set(host,u);}u.bytes+=bytes;return u.bytes<=hostDailyBytes;};
@@ -141,7 +141,7 @@ export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPe
           const packet=message.packet;validatePacket(packet);
           const host=hosts.get(packet.host);
           if(!host || host.readyState!==WebSocket.OPEN){send(ws,{type:'unavailable',id:packet.id,reason:'mac_offline'});return;}
-          if(ws.outstanding>=4 || host.pending>=maxPendingPerHost || pendingBytes+data.length>maxPendingBytes || pending.size>=maxPending){send(ws,{type:'unavailable',id:packet.id,reason:'relay_busy'});return;}
+          if(ws.outstanding>=maxOutstandingPerClient || host.pending>=maxPendingPerHost || pendingBytes+data.length>maxPendingBytes || pending.size>=maxPending){send(ws,{type:'unavailable',id:packet.id,reason:'relay_busy'});return;}
           if(!charge(packet.host,data.length)){send(ws,{type:'unavailable',id:packet.id,reason:'relay_quota'});return;}
           const route=randomUUID();ws.outstanding++;host.pending++;pendingBytes+=data.length;
           pending.set(route,{client:ws,host,id:packet.id,channel:packet.channel,issuedAt:packet.issuedAt,bytes:data.length,timer:setTimeout(()=>finish(route,'request_timeout'),requestTimeout)});
@@ -185,7 +185,7 @@ export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPe
 if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href){
   let push=null;try{push=pushConfig(process.env);}catch(error){console.error(`Push disabled: ${error.message}`);}
   const limit=(name,fallback)=>{const value=Number(process.env[name]);return Number.isFinite(value)&&value>0?value:fallback;};
-  const relay=createRelay({push,maxConnections:limit('RELAY_MAX_CONNECTIONS',5000),hostDailyBytes:limit('RELAY_HOST_DAILY_BYTES',2_000_000_000)});const port=Number(process.env.PORT || 8790);
+  const relay=createRelay({push,maxConnections:limit('RELAY_MAX_CONNECTIONS',5000),hostDailyBytes:limit('RELAY_HOST_DAILY_BYTES',2_000_000_000),maxOutstandingPerClient:limit('RELAY_MAX_OUTSTANDING_PER_CLIENT',16)});const port=Number(process.env.PORT || 8790);
   relay.server.listen(port,'0.0.0.0',()=>console.log(`Agent Remote relay listening on port ${port}. TLS must terminate at the hosting ingress. Push: ${push?'enabled for '+push.topics.join(', '):'not configured'}.`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>relay.close().then(()=>process.exit(0)));
 }

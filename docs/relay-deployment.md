@@ -27,8 +27,9 @@ Set these environment variables to change the defaults:
 |---|---|---|
 | `RELAY_MAX_CONNECTIONS` | 5000 | Open WebSocket connections across all Macs and devices |
 | `RELAY_HOST_DAILY_BYTES` | 2000000000 | Bytes carried for one Mac (requests plus responses) per 24 hours; over it, requests get `relay_quota` |
+| `RELAY_MAX_OUTSTANDING_PER_CLIENT` | 16 | Requests one phone or desktop client may have waiting at once; over it, requests get `relay_busy` |
 
-Fixed limits: 64 requests in flight per Mac, 4 per device, 600 messages a minute per connection, and 120 new connections a minute per IP address.
+Fixed limits: 64 requests in flight per Mac, 600 messages a minute per connection, and 120 new connections a minute per IP address.
 
 ## Local tests
 
