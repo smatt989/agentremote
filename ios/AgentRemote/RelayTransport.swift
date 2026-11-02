@@ -22,6 +22,11 @@ actor RelayConnection {
         var timeout: Task<Void, Never>
     }
     private var pending: [String: Pending] = [:]
+    /// Relays turn away a device's requests beyond a few in flight (`relay_busy`; 4 on relays before November 2026),
+    /// and opening the app or the new-chat sheet starts more than that at once, so the rest wait here for a slot.
+    private static let maxInFlight = 4
+    private var inFlight = 0
+    private var waiting: [CheckedContinuation<Void, Never>] = []
     init(endpoint: String) {
         self.endpoint = endpoint
         let config = URLSessionConfiguration.ephemeral
@@ -31,7 +36,8 @@ actor RelayConnection {
     }
     private func connect() throws -> URLSessionWebSocketTask {
         _ = try RelayCrypto.endpoint(endpoint)
-        if let socket, socket.state == .running, Date().timeIntervalSince(lastUse) < 30 { lastUse = Date(); return socket }
+        // An idle socket may have died unnoticed; one with requests in flight is kept, since reconnecting would fail them.
+        if let socket, socket.state == .running, !pending.isEmpty || Date().timeIntervalSince(lastUse) < 30 { lastUse = Date(); return socket }
         disconnect(AppError.message("The connection was interrupted. Check your session before retrying a command."))
         let task = session.webSocketTask(with: URL(string: endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/v1/client")!)
         task.maximumMessageSize = 40_000_000
@@ -48,8 +54,12 @@ actor RelayConnection {
         }
         return task
     }
-    func exchange(_ packet: SecurePacket) async throws -> SecurePacket {
+    /// `seal` runs once the request has a slot, so time spent waiting never counts against the packet's age limit.
+    func exchange(_ seal: @Sendable () throws -> SecurePacket) async throws -> SecurePacket {
         try Task.checkCancellation()
+        await acquireSlot(); defer { releaseSlot() }
+        try Task.checkCancellation()
+        let packet = try seal()
         let task = try connect()
         return try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
@@ -87,6 +97,13 @@ actor RelayConnection {
             pending.removeValue(forKey: packet.id); item.timeout.cancel(); item.continuation.resume(returning: packet)
         } catch { disconnect(error) }
     }
+    private func acquireSlot() async {
+        if inFlight < Self.maxInFlight { inFlight += 1; return }
+        await withCheckedContinuation { waiting.append($0) } // the releasing request hands its slot over
+    }
+    private func releaseSlot() {
+        if waiting.isEmpty { inFlight -= 1 } else { waiting.removeFirst().resume() }
+    }
     private func finish(_ id: String, error: Error) {
         guard let item = pending.removeValue(forKey: id) else { return }
         item.timeout.cancel(); item.continuation.resume(throwing: error)
@@ -108,10 +125,12 @@ actor RelayPool {
 enum EncryptedRelay {
     private struct Response: Decodable { var status: Int; var body: String }
     static func request(endpoint: String, host: String, channel: String, secret: Data, value: [String: Any]) async throws -> Data {
-        let header = SecurePacket(host: host, channel: channel, id: UUID().uuidString, issuedAt: Int64(Date().timeIntervalSince1970 * 1000), box: "")
-        let packet = try RelayCrypto.seal(JSONSerialization.data(withJSONObject: value), secret: secret, header: header, direction: "request")
+        let plaintext = try JSONSerialization.data(withJSONObject: value)
         let connection = await RelayPool.shared.connection(endpoint)
-        let response = try await connection.exchange(packet)
+        let response = try await connection.exchange {
+            let header = SecurePacket(host: host, channel: channel, id: UUID().uuidString, issuedAt: Int64(Date().timeIntervalSince1970 * 1000), box: "")
+            return try RelayCrypto.seal(plaintext, secret: secret, header: header, direction: "request")
+        }
         let cleartext = try RelayCrypto.open(response, secret: secret, direction: "response")
         let result = try JSONDecoder().decode(Response.self, from: cleartext)
         guard let body = Data(base64Encoded: result.body) else { throw AppError.message("The Mac returned invalid data.") }
