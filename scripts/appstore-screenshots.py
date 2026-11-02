@@ -12,7 +12,7 @@ ENV = dict(os.environ, DEVELOPER_DIR='/Applications/Xcode.app/Contents/Developer
 RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5'
 DEVICES = [('iphone-6.9', 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max'),
            ('ipad-13', 'com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M4-16GB')]
-MODES = ['sessions', 'conversation', 'knowledge']
+MODES = ['sessions', 'conversation', 'question', 'knowledge']
 BUNDLE = 'com.agentremote.appstorecapture'
 if WORK.exists(): shutil.rmtree(WORK)
 WORK.mkdir(parents=True); OUT.mkdir(exist_ok=True)
@@ -31,6 +31,10 @@ messages = [
     dict(id='m2', role='assistant', kind='text', text='I found the payment conventions in your knowledge base. Retries should reuse the original idempotency key, and a timeout should leave the order pending.\n\nI’ll check the handler against those decisions and add a regression test.', seq=2),
     dict(id='m3', role='user', kind='text', text='Yes. Keep the current API response format too.', seq=3),
     dict(id='m4', role='assistant', kind='text', text='The retry path was generating a new key each time. I’ve updated it to reuse the original key.\n\n- Response format preserved\n- Regression test added for duplicate requests\n- Checking the timeout case next\n\n```swift\nlet key = order.idempotencyKey ?? UUID().uuidString\n```', seq=4)]
+question_session = dict(sessions[5], status='waiting')
+question_messages = [
+    dict(id='q1', role='user', kind='text', text='The payment tests fail about one run in ten. Find out why and fix it.', seq=1),
+    dict(id='q2', role='assistant', kind='text', text='The flaky test times out against the sandbox, and the code then cancels the order while the payment may still go through.\n\nBefore I change the timeout handling, one decision:', seq=2)]
 entries = [dict(id=i, topic=i, title=t, summary=s, parent=None, kind='subject') for i, t, s in [
     ('payments', 'Payments & checkout', 'Retry behavior, payment states, and API decisions.'),
     ('work', 'How I work', 'Review preferences, planning habits, and working agreements.'),
@@ -58,7 +62,7 @@ extension KnowledgeView {
 func captureKnowledgeFixture(_ host: Host) -> some View { KnowledgeView.captureFixture(host) }
 ''')
 conversation = ios / 'AgentRemote/ConversationView.swift'
-patch(conversation, [('guard phase == .active else { voice.stop(); return }', 'guard ProcessInfo.processInfo.environment["SITE_FIXTURE"] != "1", phase == .active else { voice.stop(); return }'),
+patch(conversation, [('guard phase == .active else {', 'guard ProcessInfo.processInfo.environment["SITE_FIXTURE"] != "1", phase == .active else {'),
                      ('private func refresh() async {', 'private func refresh() async {' + fixture_guard)])
 conversation.write_text(conversation.read_text() + '''
 extension ConversationView {
@@ -69,10 +73,22 @@ extension ConversationView {
   view._messages = State(initialValue: try! decoder.decode([Message].self, from: Data(''' + swift_json(messages) + '''.utf8)))
   return view
  }
+ // A question the agent is waiting on, shown as a tap-to-answer card.
+ static func questionFixture(host: Host) -> ConversationView {
+  let decoder = JSONDecoder()
+  let session = try! decoder.decode(Session.self, from: Data(''' + swift_json(question_session) + '''.utf8))
+  var view = ConversationView(session: session, host: host)
+  view._messages = State(initialValue: try! decoder.decode([Message].self, from: Data(''' + swift_json(question_messages) + '''.utf8)))
+  view._questions = State(initialValue: [AgentQuestion(id: "q", questions: [QuestionItem(id: "timeout", title: "When a payment times out, what should happen to the order?", options: [QuestionOption(label: "Leave it pending", description: "Retry later with the same idempotency key."), QuestionOption(label: "Cancel it", description: "Release the inventory and email the customer.")], multiSelect: false)], state: "pending", native: true)])
+  return view
+ }
 }
 ''')
-(ios / 'AgentRemote/AgentRemoteApp.swift').write_text('''import SwiftUI
-@main struct AgentRemoteApp: App {
+# Keep AgentRemoteApp.swift (other code uses its helpers); only the @main entry point is replaced.
+app_source = ios / 'AgentRemote/AgentRemoteApp.swift'; app_text = app_source.read_text()
+assert '@main struct AgentRemoteApp' in app_text, 'app entry point moved; update this script'
+app_source.write_text(app_text.replace('@main struct AgentRemoteApp', 'struct AgentRemoteApp', 1) + '''
+@main struct CaptureApp: App {
  @StateObject private var state: AppState
  init() {
   let model = AppState()
@@ -86,6 +102,7 @@ extension ConversationView {
    switch ProcessInfo.processInfo.environment["CAPTURE_MODE"] {
    case "knowledge": captureKnowledgeFixture(state.host!)
    case "conversation": NavigationStack { ConversationView.captureFixture(host: state.host!) }
+   case "question": NavigationStack { ConversationView.questionFixture(host: state.host!) }
    default: SessionListView()
    }
   }.environmentObject(state).tint(.mint).preferredColorScheme(.dark)
@@ -104,6 +121,8 @@ for label, device_type in DEVICES:
         run(['xcrun', 'simctl', 'ui', device, 'appearance', 'dark'])
         run(['xcrun', 'simctl', 'status_bar', device, 'override', '--time', '9:41', '--dataNetwork', 'wifi', '--wifiMode', 'active', '--wifiBars', '3', '--cellularMode', 'active', '--cellularBars', '4', '--batteryState', 'charged', '--batteryLevel', '100'])
         run(['xcrun', 'simctl', 'install', device, app])
+        # A fresh simulator shows one-time system banners (e.g. "Ready for Apple Intelligence"); let them pass first.
+        subprocess.run(['xcrun', 'simctl', 'launch', device, BUNDLE], env=dict(ENV, SIMCTL_CHILD_SITE_FIXTURE='1'), check=True); time.sleep(25)
         for mode in MODES:
             subprocess.run(['xcrun', 'simctl', 'launch', '--terminate-running-process', device, BUNDLE], env=dict(ENV, SIMCTL_CHILD_SITE_FIXTURE='1', SIMCTL_CHILD_CAPTURE_MODE=mode), check=True)
             time.sleep(5)
