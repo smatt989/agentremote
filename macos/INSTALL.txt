@@ -11,6 +11,9 @@ AGENT REMOTE — MAC SETUP
    Mac, from https://smatt989.github.io/agentremote-site/#download
 5. Click Show pairing code. In the app, tap Pair this iPhone > Scan QR code
    (or Pair another Mac in the gear menu), scan, then tap Pair Mac.
+   To add a laptop, on your paired phone tap the gear menu > Add a device >
+   Send link, and AirDrop it to the laptop. It opens in Agent Remote Client;
+   click Pair Mac.
 6. Turn on Start at login if desired. Approve it in Login Items if macOS asks.
 
 Closing the setup window leaves Agent Remote running in the menu bar.

@@ -96,7 +96,7 @@ The notarized installer is published at https://github.com/smatt989/agentremote-
 1. Open the DMG and drag **Agent Remote** to **Applications**.
 2. Open the app. It is signed with a Developer ID and notarized by Apple.
 3. Use the app’s Codex/Claude setup buttons if those command-line clients are missing or need sign-in. The app runs the official installer and launches browser sign-in. A Manual setup option opens Terminal if needed. The service uses that Mac’s existing accounts and files.
-4. Click **Show pairing code**. In the iPhone app or Agent Remote Client, tap **Pair this iPhone → Scan QR code** (or **Pair another Mac** in the gear menu), then **Pair Mac**.
+4. Click **Show pairing code**. In the iPhone app, tap **Pair this iPhone → Scan QR code** (or **Pair another Mac** in the gear menu), then **Pair Mac**. For a laptop, use the phone's gear menu → **Add a device… → Send link** and AirDrop it to the laptop (or **Copy pairing link** in the Mac app); the link opens in Agent Remote Client, then **Pair Mac**.
 5. Enable **Start at login** if desired; approve the Login Items entry if prompted.
 
 Closing the setup window keeps the menu-bar app and service running. Quitting stops remote access and may interrupt managed work. To update, quit, replace the app in Applications, then reopen it. State and pairing stay in the user’s Application Support folder. Disable Start at login before removing the app.

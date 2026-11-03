@@ -671,7 +671,7 @@ struct SetupView: View {
                 }
                 Text("iPhone: open Agent Remote, tap Pair this iPhone, then Scan QR code. Already paired with another Mac? Use the gear menu → Pair another Mac.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Text("Laptop: copy the pairing link and paste it into Agent Remote Client on your laptop, or send it to yourself. It works once, for 5 minutes. Anyone with it can control this Mac.")
+                Text("Laptop: on your paired phone, tap the gear menu → Add a device… → Send link, and AirDrop it to the laptop. Or copy the pairing link here and send it to yourself. A link works once, for 5 minutes. Anyone with it can control this Mac.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Link("Don’t have the app yet? Get it for iPhone, or Agent Remote Client for another Mac.", destination: URL(string: "https://smatt989.github.io/agentremote-site/#download")!)
                     .font(.caption)

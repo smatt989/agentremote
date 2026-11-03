@@ -80,7 +80,7 @@ struct SessionListView: View {
                 if state.host == nil {
                     ContentUnavailableView {
                         Label("Bring your agents along", systemImage: "bubble.left.and.text.bubble.right")
-                    } description: { Text("Start work, follow commands, and pick up chats from your phone.") } actions: { Button("Pair this iPhone", action: { pairing = true }).buttonStyle(.borderedProminent) }
+                    } description: { Text("Start work, follow commands, and pick up chats from your phone.") } actions: { Button(Platform.isMac ? "Pair this Mac" : "Pair this iPhone", action: { pairing = true }).buttonStyle(.borderedProminent) }
                 }
                 if let error = state.error { Section { Label(error, systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(Theme.failure) } }
                 ForEach(state.warnings, id: \.self) { warning in Label(warning, systemImage: "info.circle").font(.caption).foregroundStyle(Theme.info) }
@@ -246,14 +246,24 @@ struct PairView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Label("Your Mac, securely connected", systemImage: "lock.shield").font(.headline)
-                    Text("Scan the code shown by Agent Remote on your Mac. Pair once, then connect wherever you are.").foregroundStyle(.secondary)
-                    Button { scanning = true } label: { Label("Scan QR code", systemImage: "qrcode.viewfinder") }.buttonStyle(.borderedProminent)
+                // A laptop can't easily scan a screen, so it gets the link from a paired phone (or the Mac app) instead.
+                if Platform.isMac {
+                    Section {
+                        Label("Your Mac, securely connected", systemImage: "lock.shield").font(.headline)
+                        Text("On your phone, open Agent Remote and tap \(Image(systemName: "gearshape")) → **Add a device…**, then **Send link** and AirDrop it to this Mac. It opens here, ready to pair.").foregroundStyle(.secondary)
+                        Text("No phone paired yet? On the Mac running Agent Remote, click **Copy pairing link** and send it here.").font(.footnote).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Section {
+                        Label("Your Mac, securely connected", systemImage: "lock.shield").font(.headline)
+                        Text("Scan the code shown by Agent Remote on your Mac. Pair once, then connect wherever you are.").foregroundStyle(.secondary)
+                        Button { scanning = true } label: { Label("Scan QR code", systemImage: "qrcode.viewfinder") }.buttonStyle(.borderedProminent)
+                    }
                 }
-                Section("Or paste a pairing link") {
+                Section(Platform.isMac ? "Or paste the pairing link" : "Or paste a pairing link") {
                     TextField("agentremote://pair#…", text: $code, axis: .vertical).lineLimit(1...4).textInputAutocapitalization(.never).autocorrectionDisabled()
                         .font(.callout.monospaced()).accessibilityIdentifier("pairingCode")
+                    if Platform.isMac { Button { scanning = true } label: { Label("Scan a QR code instead", systemImage: "qrcode.viewfinder") } }
                 }
                 if let invite = try? RelayInvite.parse(code) { Section { Label(invite.name, systemImage: "desktopcomputer"); Text("End-to-end encrypted · No VPN required").font(.caption).foregroundStyle(.secondary) } }
                 if let error { Text(error).foregroundStyle(Theme.failure) }
