@@ -35,7 +35,7 @@ const replacements = {
   macAction: macUrl ? button(macUrl, 'Download for Mac') : unavailable('Mac release being prepared'),
   macNote: escape(macNote),
   iphoneAction: config.iphoneUrl ? button(config.iphoneUrl, config.iphoneLabel || 'Get the iPhone app') : unavailable('iPhone release being prepared'),
-  iphoneNote: config.iphoneUrl ? 'iOS 17+ · TestFlight beta' : 'Requires iOS 17 or later.',
+  iphoneNote: escape(config.iphoneNote || (config.iphoneUrl ? 'iOS 17+ · TestFlight beta' : 'Requires iOS 17 or later.')),
   repoUrl: escape(config.repoUrl),
   repoApi: escape(config.repoUrl.replace('https://github.com/', 'https://api.github.com/repos/')),
   clientAction: clientUrl ? button(clientUrl, 'Download client') : unavailable('Coming soon'),
