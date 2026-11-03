@@ -26,10 +26,14 @@ Set these environment variables to change the defaults:
 | Variable | Default | Meaning |
 |---|---|---|
 | `RELAY_MAX_CONNECTIONS` | 5000 | Open WebSocket connections across all Macs and devices |
-| `RELAY_HOST_DAILY_BYTES` | 2000000000 | Bytes carried for one Mac (requests plus responses) per 24 hours; over it, requests get `relay_quota` |
+| `RELAY_MAX_CONNECTIONS_PER_IP` | 200 | Open WebSocket connections from one IP address |
+| `RELAY_HOST_DAILY_BYTES` | 5000000000 | Bytes carried for one Mac (requests plus responses) per 24 hours; over it, requests get `relay_quota` |
+| `RELAY_IP_DAILY_BYTES` | 10000000000 | Bytes sent from one IP address per 24 hours (requests from phones, responses from Macs); over it, `relay_quota`. A Mac identity is only a key, so this is what stops one sender minting Macs to get more allowance |
+| `RELAY_TOTAL_DAILY_BYTES` | 1900000000000 | Bytes carried by the whole relay per 24 hours, a ceiling on hosting egress (about $95 a day at $0.05/GB); over it, `relay_busy` |
+| `RELAY_CLIENT_IP_HEADER` | unset | Header your ingress sets to the caller's IP, used for the per-IP limits. Behind a proxy every caller otherwise shares the proxy's address. Only name a header the ingress overwrites, or callers can choose their own address. Railway: `x-real-ip` |
 | `RELAY_MAX_OUTSTANDING_PER_CLIENT` | 16 | Requests one phone or desktop client may have waiting at once; over it, requests get `relay_busy` |
 
-Fixed limits: 64 requests in flight per Mac, 600 messages a minute per connection, and 120 new connections a minute per IP address.
+Fixed limits: 64 requests in flight per Mac, 600 messages a minute per connection, and 120 new connections a minute per IP address. The relay logs connection, address and Mac counts (never addresses) 10 minutes after start and hourly.
 
 ## Local tests
 

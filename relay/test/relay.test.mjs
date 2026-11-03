@@ -175,3 +175,28 @@ test('a Mac over its daily relay allowance gets relay_quota instead of a respons
   assert.equal(frame.type,'unavailable');assert.equal(frame.reason,'relay_quota');
   assert.equal(f.relay.stats().pending,0);
 });
+test('one IP address over its daily allowance gets relay_quota even when its Mac has allowance left',async t=>{
+  const f=await fixture(t,{hostDailyBytes:1e12,addressDailyBytes:60_000});const device=await f.pair();
+  let frame;for(let i=0;i<40;i++){frame=await f.request(device,'/sessions');if(frame.type==='unavailable')break;}
+  assert.equal(frame.type,'unavailable');assert.equal(frame.reason,'relay_quota');
+  assert.equal(f.relay.stats().pending,0);
+});
+test('the relay-wide daily allowance turns requests away as relay_busy',async t=>{
+  const f=await fixture(t,{totalDailyBytes:60_000});const device=await f.pair();
+  let frame;for(let i=0;i<40;i++){frame=await f.request(device,'/sessions');if(frame.type==='unavailable')break;}
+  assert.equal(frame.type,'unavailable');assert.equal(frame.reason,'relay_busy');
+  assert.ok(f.relay.stats().totalBytesToday<=60_000);
+});
+test('connections per IP address are capped, and an ingress header tells callers behind a proxy apart',async t=>{
+  const relay=createRelay({maxConnectionsPerAddress:2,clientAddressHeader:'X-Real-IP',heartbeatInterval:1000});await new Promise(resolve=>relay.server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>relay.close());
+  const url=`ws://127.0.0.1:${relay.server.address().port}/v1/client`;
+  const connect=ip=>new Promise(resolve=>{const ws=new WebSocket(url,ip?{headers:{'X-Real-IP':ip}}:{});ws.on('open',()=>resolve(ws));ws.on('unexpected-response',()=>resolve(null));ws.on('error',()=>resolve(null));});
+  const a=[await connect('203.0.113.1'),await connect('203.0.113.1')];assert.ok(a.every(Boolean));
+  assert.equal(await connect('203.0.113.1'),null,'a third socket from one address is refused');
+  const b=await connect('203.0.113.2');assert.ok(b,'another address is unaffected');
+  assert.equal(relay.stats().addresses,2);
+  a[0].close();await once(a[0],'close');await new Promise(resolve=>setTimeout(resolve,50));
+  const again=await connect('203.0.113.1');assert.ok(again,'closing a socket frees its slot');
+  for(const ws of [a[1],b,again])ws.terminate();
+});

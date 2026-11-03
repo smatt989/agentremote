@@ -81,12 +81,24 @@ export function createPusher({key,keyId,teamId,topics,send=apnsSend,now=()=>Date
 
 // The relay only knows public routing headers, public identity keys, and ciphertext.
 // It deliberately has no database, provider integration, or plaintext payload logger.
-// Limits are per Mac where possible, so one busy Mac cannot crowd out the rest. The daily byte allowance per Mac
-// (requests plus responses) bounds what a shared relay carries; self-hosted relays can raise it.
-export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPerHost=64, maxOutstandingPerClient=16, maxPendingBytes=256_000_000, hostDailyBytes=2_000_000_000, requestTimeout=50_000, heartbeatInterval=25_000, push=null }={}) {
-  const hosts=new Map(), pending=new Map(), addresses=new Map(), usage=new Map(); let pendingBytes=0;
-  // Bytes carried for one Mac in the current 24-hour window; false once the allowance is used up.
-  const charge=(host,bytes)=>{const t=Date.now();let u=usage.get(host);if(!u || t>u.until){u={bytes:0,until:t+86_400_000};usage.set(host,u);}u.bytes+=bytes;return u.bytes<=hostDailyBytes;};
+// Limits are per Mac where possible, so one busy Mac cannot crowd out the rest. Daily byte allowances bound what a
+// shared relay carries (and costs): per Mac, per IP address that sends the bytes (a Mac identity is only a key, so
+// anyone can mint more; their address is harder to multiply), and in total. Self-hosted relays can raise them.
+// `clientAddressHeader` names a header set by the hosting ingress with the caller's IP (Railway: x-real-ip); without
+// it every caller behind a proxy would share the proxy's address and its limits.
+export function createRelay({ maxConnections=5000, maxConnectionsPerAddress=200, maxPending=4096, maxPendingPerHost=64, maxOutstandingPerClient=16, maxPendingBytes=256_000_000, hostDailyBytes=5_000_000_000, addressDailyBytes=10_000_000_000, totalDailyBytes=1_900_000_000_000, clientAddressHeader=null, requestTimeout=50_000, heartbeatInterval=25_000, push=null }={}) {
+  const hosts=new Map(), pending=new Map(), addresses=new Map(), connections=new Map(), usage={host:new Map(),address:new Map()}; let pendingBytes=0, total={bytes:0,until:0};
+  const meter=(map,key)=>{const t=Date.now();let u=map.get(key);if(!u || t>u.until){u={bytes:0,until:t+86_400_000};map.set(key,u);}return u;};
+  // Charges bytes to the Mac, the sending address and the total for the current 24-hour windows. Over an allowance
+  // nothing is charged and the refusal reason is returned: relay_quota for one Mac or address, relay_busy for the total.
+  const charge=(host,address,bytes)=>{
+    const h=meter(usage.host,host),a=meter(usage.address,address),t=Date.now();if(t>total.until)total={bytes:0,until:t+86_400_000};
+    if(total.bytes+bytes>totalDailyBytes)return 'relay_busy';
+    if(h.bytes+bytes>hostDailyBytes || a.bytes+bytes>addressDailyBytes)return 'relay_quota';
+    h.bytes+=bytes;a.bytes+=bytes;total.bytes+=bytes;return null;
+  };
+  const header=clientAddressHeader?.toLowerCase();
+  const addressOf=req=>{const value=header && String(req.headers[header]||'').split(',')[0].trim();return value && /^[0-9A-Fa-f:.]{2,45}$/.test(value)?value:(req.socket.remoteAddress || 'unknown');};
   const pusher=push?createPusher(push):null;
   const server=http.createServer((req,res)=>{
     res.setHeader('Cache-Control','no-store');
@@ -106,12 +118,12 @@ export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPe
   }
   server.on('upgrade',(req,socket,head)=>{
     const path=req.url;
-    const address=req.socket.remoteAddress || 'unknown';
+    const address=addressOf(req);
     const now=Date.now();let rate=addresses.get(address);
     if(!rate || now>rate.until){rate={count:0,until:now+60_000};addresses.set(address,rate);}
-    // Do not trust caller-provided X-Forwarded-For. Rate limit at the ingress too.
-    if(req.headers.origin || !['/v1/host','/v1/client'].includes(path) || wss.clients.size>=maxConnections || ++rate.count>120){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
-    wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,path));
+    // Caller-provided X-Forwarded-For is never trusted; only the header named by clientAddressHeader. Rate limit at the ingress too.
+    if(req.headers.origin || !['/v1/host','/v1/client'].includes(path) || wss.clients.size>=maxConnections || (connections.get(address)||0)>=maxConnectionsPerAddress || ++rate.count>120){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
+    wss.handleUpgrade(req,socket,head,ws=>{ws.address=address;connections.set(address,(connections.get(address)||0)+1);wss.emit('connection',ws,path);});
   });
   wss.on('connection',(ws,path)=>{
     ws.alive=true;ws.outstanding=0;ws.pending=0;ws.budget={count:0,until:Date.now()+60_000};
@@ -142,7 +154,7 @@ export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPe
           const host=hosts.get(packet.host);
           if(!host || host.readyState!==WebSocket.OPEN){send(ws,{type:'unavailable',id:packet.id,reason:'mac_offline'});return;}
           if(ws.outstanding>=maxOutstandingPerClient || host.pending>=maxPendingPerHost || pendingBytes+data.length>maxPendingBytes || pending.size>=maxPending){send(ws,{type:'unavailable',id:packet.id,reason:'relay_busy'});return;}
-          if(!charge(packet.host,data.length)){send(ws,{type:'unavailable',id:packet.id,reason:'relay_quota'});return;}
+          const refused=charge(packet.host,ws.address,data.length);if(refused){send(ws,{type:'unavailable',id:packet.id,reason:refused});return;}
           const route=randomUUID();ws.outstanding++;host.pending++;pendingBytes+=data.length;
           pending.set(route,{client:ws,host,id:packet.id,channel:packet.channel,issuedAt:packet.issuedAt,bytes:data.length,timer:setTimeout(()=>finish(route,'request_timeout'),requestTimeout)});
           if(!send(host,{type:'request',route,packet}))finish(route,'mac_offline');
@@ -152,7 +164,7 @@ export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPe
           const item=pending.get(message.route);if(!item || item.host!==ws)return;
           validatePacket(message.packet);
           if(message.packet.host!==ws.host || message.packet.id!==item.id || message.packet.channel!==item.channel || message.packet.issuedAt!==item.issuedAt)throw new Error('Mismatched response.');
-          if(!charge(ws.host,data.length)){finish(message.route,'relay_quota');return;}
+          const refused=charge(ws.host,ws.address,data.length);if(refused){finish(message.route,refused);return;}
           send(item.client,{type:'response',packet:message.packet});finish(message.route);return;
         }
         if(role==='host' && registered && message.type==='push'){
@@ -169,6 +181,7 @@ export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPe
     });
     ws.on('close',()=>{
       clearTimeout(authTimer);
+      const open=(connections.get(ws.address)||1)-1;if(open>0)connections.set(ws.address,open);else connections.delete(ws.address);
       if(ws.host && hosts.get(ws.host)===ws)hosts.delete(ws.host);
       for(const [route,item] of pending)if(item.client===ws || item.host===ws)finish(route,item.host===ws?'mac_offline':undefined);
     });
@@ -176,16 +189,19 @@ export function createRelay({ maxConnections=5000, maxPending=4096, maxPendingPe
   const timer=setInterval(()=>{
     for(const ws of wss.clients){if(!ws.alive){ws.terminate();continue;}ws.alive=false;ws.ping();}
     for(const [address,rate] of addresses)if(Date.now()>rate.until)addresses.delete(address);
-    for(const [host,u] of usage)if(Date.now()>u.until)usage.delete(host);
+    for(const map of Object.values(usage))for(const [key,u] of map)if(Date.now()>u.until)map.delete(key);
     pusher?.sweep();
   },heartbeatInterval);timer.unref();
   async function close(){clearInterval(timer);for(const ws of wss.clients)ws.terminate();for(const route of [...pending.keys()])finish(route);await new Promise(resolve=>server.close(resolve));}
-  return {server,close,stats:()=>({hosts:hosts.size,connections:wss.clients.size,pending:pending.size,pendingBytes})};
+  return {server,close,stats:()=>({hosts:hosts.size,connections:wss.clients.size,addresses:connections.size,pending:pending.size,pendingBytes,totalBytesToday:total.bytes})};
 }
 if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href){
   let push=null;try{push=pushConfig(process.env);}catch(error){console.error(`Push disabled: ${error.message}`);}
   const limit=(name,fallback)=>{const value=Number(process.env[name]);return Number.isFinite(value)&&value>0?value:fallback;};
-  const relay=createRelay({push,maxConnections:limit('RELAY_MAX_CONNECTIONS',5000),hostDailyBytes:limit('RELAY_HOST_DAILY_BYTES',2_000_000_000),maxOutstandingPerClient:limit('RELAY_MAX_OUTSTANDING_PER_CLIENT',16)});const port=Number(process.env.PORT || 8790);
-  relay.server.listen(port,'0.0.0.0',()=>console.log(`Agent Remote relay listening on port ${port}. TLS must terminate at the hosting ingress. Push: ${push?'enabled for '+push.topics.join(', '):'not configured'}.`));
+  const relay=createRelay({push,maxConnections:limit('RELAY_MAX_CONNECTIONS',5000),maxConnectionsPerAddress:limit('RELAY_MAX_CONNECTIONS_PER_IP',200),hostDailyBytes:limit('RELAY_HOST_DAILY_BYTES',5_000_000_000),addressDailyBytes:limit('RELAY_IP_DAILY_BYTES',10_000_000_000),totalDailyBytes:limit('RELAY_TOTAL_DAILY_BYTES',1_900_000_000_000),clientAddressHeader:process.env.RELAY_CLIENT_IP_HEADER||null,maxOutstandingPerClient:limit('RELAY_MAX_OUTSTANDING_PER_CLIENT',16)});const port=Number(process.env.PORT || 8790);
+  // Counts only, never addresses: confirms the ingress header is distinguishing callers.
+  const report=()=>{const s=relay.stats();console.log(`Relay: ${s.connections} connections from ${s.addresses} addresses, ${s.hosts} Macs, ${(s.totalBytesToday/1e9).toFixed(2)} GB carried in the current day.`);};
+  setTimeout(report,600_000).unref();setInterval(report,3_600_000).unref();
+  relay.server.listen(port,'0.0.0.0',()=>console.log(`Agent Remote relay listening on port ${port}. TLS must terminate at the hosting ingress. Push: ${push?'enabled for '+push.topics.join(', '):'not configured'}. Caller address: ${process.env.RELAY_CLIENT_IP_HEADER?'header '+process.env.RELAY_CLIENT_IP_HEADER:'socket peer'}.`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>relay.close().then(()=>process.exit(0)));
 }
