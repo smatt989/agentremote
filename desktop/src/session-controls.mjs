@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { spawn } from 'node:child_process';
 const fail = (message,status=409) => Object.assign(new Error(message),{status});
 const active = s => ['running','submitting','waiting','compacting'].includes(s.status);
 const millis = n => Number.isFinite(n) && n > 0 ? (n < 1e12 ? n*1000 : n) : null;
@@ -37,6 +39,32 @@ export function accountUsage(store, now = Date.now()) {
   const view = value => { if (!value) return null; const v = { fiveHour: current(value.fiveHour), sevenDay: current(value.sevenDay), updatedAt: value.updatedAt }; return v.fiveHour || v.sevenDay ? v : null; };
   return { claude: view(read('usage:claude')), codex: view(read('usage:codex')) };
 }
+/**
+ * Asks the Claude CLI for its model list through the stream-json control protocol's initialize request (what the
+ * Agent SDK's supportedModels() reads). No prompt is sent, so no model is called. Returns the main picker entries:
+ * everything before the older full-name models that follow the last alias, without "default".
+ */
+export function listClaudeModels({command=process.env.AGENT_REMOTE_CLAUDE||'claude',timeoutMs=20_000}={}){
+  return new Promise((resolve,reject)=>{
+    const cwd=mkdtempSync(join(tmpdir(),'agentremote-models-'));
+    const child=spawn(command,['-p','--input-format','stream-json','--output-format','stream-json','--verbose','--no-session-persistence','--safe-mode','--strict-mcp-config','--mcp-config','{"mcpServers":{}}'],{cwd,stdio:['pipe','pipe','ignore'],env:{...process.env,CLAUDE_CODE_SKIP_PROMPT_HISTORY:'1'}});
+    let buffer='',done=false;
+    const finish=(error,value)=>{if(done)return;done=true;clearTimeout(timer);try{child.kill('SIGKILL');}catch{}rmSync(cwd,{recursive:true,force:true});error?reject(error):resolve(value);};
+    const timer=setTimeout(()=>finish(new Error('Claude did not list its models in time.')),timeoutMs);
+    child.on('error',e=>finish(e));child.on('exit',()=>finish(new Error('Claude exited before listing its models.')));child.stdin.on('error',()=>{});
+    child.stdout.on('data',data=>{
+      buffer+=data;let line;
+      while((line=buffer.indexOf('\n'))>=0){
+        const text=buffer.slice(0,line);buffer=buffer.slice(line+1);let event;try{event=JSON.parse(text);}catch{continue;}
+        if(event.type!=='control_response'||event.response?.request_id!=='models')continue;
+        const list=(event.response.response?.models||[]).filter(m=>typeof m?.value==='string'&&m.value&&m.value!=='default');
+        const lastAlias=list.findLastIndex(m=>!m.value.startsWith('claude-'));
+        finish(null,list.slice(0,lastAlias>=0?lastAlias+1:list.length).map(m=>({id:m.value,name:m.displayName||m.value,description:m.description||'',efforts:m.supportsEffort&&Array.isArray(m.supportedEffortLevels)?m.supportedEffortLevels:[]})));
+      }
+    });
+    child.stdin.write(JSON.stringify({type:'control_request',request_id:'models',request:{subtype:'initialize'}})+'\n');
+  });
+}
 export class SessionControls {
   constructor(providers) {
     this.providers=providers;this.store=providers.store;this.limitCache=null;this.polling=null;this.tickBusy=false;this.claudeFailures=new Map();
@@ -50,10 +78,20 @@ export class SessionControls {
   preferences(){return this.read('sessionPreferences',{autoRetry:false});}
   setPreferences(value){if(typeof value.autoRetry!=='boolean')throw fail('Choose whether to retry automatically.',400);this.write('sessionPreferences',{autoRetry:value.autoRetry});return this.preferences();}
   async models(provider){
-    if(provider==='claude')return {models:['opus','sonnet','haiku'].map(id=>({id,name:id[0].toUpperCase()+id.slice(1),efforts:['low','medium','high','xhigh','max']})),note:'Aliases follow your Claude installation. Model support for effort varies.'};
+    if(provider==='claude')return this.claudeModels();
     const rpc=await this.providers.codex();const models=[];let cursor;
     do{const page=await rpc.call('model/list',{limit:100,cursor});models.push(...page.data.filter(m=>!m.hidden).map(m=>({id:m.model,name:m.displayName,efforts:m.supportedReasoningEfforts.map(e=>e.reasoningEffort),defaultEffort:m.defaultReasoningEffort,isDefault:m.isDefault})));cursor=page.nextCursor;}while(cursor);
     return {models};
+  }
+  // Claude's list comes from the installed Claude Code (the same list as its /model picker), so new models appear
+  // without an Agent Remote update. It is refreshed at most every six hours in the background; the last answer, then
+  // the plain aliases, cover a CLI that cannot answer.
+  async claudeModels(){
+    const cached=this.read('claudeModelCatalog',null),fresh=cached&&Date.now()-cached.at<6*3600_000;
+    if(!fresh&&!this.claudeListing)this.claudeListing=listClaudeModels().then(models=>{if(models.length)this.write('claudeModelCatalog',{at:Date.now(),models});return models;}).catch(()=>[]).finally(()=>{this.claudeListing=null;});
+    const models=cached?.models||await this.claudeListing||[];
+    if(models.length)return {models,note:'From your Claude Code installation. Model support for effort varies.'};
+    return {models:['opus','sonnet','haiku'].map(id=>({id,name:id[0].toUpperCase()+id.slice(1),efforts:['low','medium','high','xhigh','max']})),note:'Aliases follow your Claude installation. Model support for effort varies.'};
   }
   async configure(id,value){
     const s=this.store.session(id);if(!s)throw fail('Session not found.',404);

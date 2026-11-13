@@ -95,3 +95,21 @@ test('handoff of a long conversation starts the new service instead of failing o
  assert.doesNotMatch(session.note||'',/short query/);assert.equal(session.status,'running');
  assert.match(written[0].message.content[0].text,/Decision 59/);
 });
+
+test('the Claude model list comes from the installed CLI, keeps its order and drops default and older models', async t => {
+  const { listClaudeModels } = await import('../src/session-controls.mjs');
+  const { mkdtempSync, writeFileSync, chmodSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os'); const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'ar-claude-models-')); t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const models = [{ value: 'default', displayName: 'Default' }, { value: 'opus', displayName: 'Opus 5.5', supportsEffort: true, supportedEffortLevels: ['low', 'max'] },
+    { value: 'claude-fable-5-2', displayName: 'Fable 5.2', supportsEffort: true, supportedEffortLevels: ['high'] }, { value: 'haiku', displayName: 'Haiku 5.5' },
+    { value: 'claude-opus-4-8', displayName: 'Opus 4.8' }];
+  const cli = join(dir, 'claude');
+  writeFileSync(cli, `#!/usr/bin/env node\nprocess.stdin.once('data', d => { const r = JSON.parse(d); console.log('{"type":"system","subtype":"init"}'); console.log(JSON.stringify({ type: 'control_response', response: { request_id: r.request_id, response: { models: ${JSON.stringify(models)} } } })); });\nsetTimeout(() => {}, 10000);\n`);
+  chmodSync(cli, 0o755);
+  assert.deepEqual(await listClaudeModels({ command: cli }), [
+    { id: 'opus', name: 'Opus 5.5', description: '', efforts: ['low', 'max'] },
+    { id: 'claude-fable-5-2', name: 'Fable 5.2', description: '', efforts: ['high'] },
+    { id: 'haiku', name: 'Haiku 5.5', description: '', efforts: [] }]);
+  await assert.rejects(listClaudeModels({ command: join(dir, 'missing') }));
+});
