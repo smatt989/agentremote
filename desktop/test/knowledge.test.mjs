@@ -270,3 +270,16 @@ test('the index lists every article in one call and reads reuse the projection u
  assert.match(store.knowledge.read('work/example/revenue~1').markdown,/Refunds are excluded/);assert.equal(rebuilds,3);
  assert.equal(store.knowledge.read('work/example/revenue~1',{budget:60000}).nextOffset,null);
 });
+
+test('reader search returns ranked index entries in large pages, so a common word is one request', t => {
+  const store = fixture(t);
+  for (let i = 0; i < 20; i++) add(store, 'l' + i, `Ledger export ${i} runs nightly for team ${i}.`, `work/example/ledger-${i}`);
+  add(store, 'other', 'Unrelated note about hiring.', 'work/example/hiring');
+  const first = store.knowledge.find('ledger');
+  assert.ok(first.length >= 20, 'every match fits in one page');
+  assert.ok(first.every(e => typeof e.title === 'string' && typeof e.summary === 'string' && !('sections' in e)));
+  assert.ok(!first.some(e => e.id.includes('hiring')));
+  assert.deepEqual(store.knowledge.find('ledger', { offset: first.length }), []);
+  assert.equal(store.knowledge.find('ledger', { limit: 5 }).length, 5);
+  assert.ok(store.knowledge.find('').length >= 21, 'an empty query lists the index');
+});

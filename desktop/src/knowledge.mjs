@@ -236,6 +236,16 @@ export class Knowledge {
     pages=pages.filter(p=>!topic||p.topic===topic||p.topic.startsWith(topic+'/'));
     return bounded(pages.slice(offset,offset+limit),Math.max(1000,Math.min(6000,Number(budget)||3200)));
   }
+  // Reader search (the Knowledge tab and Mac browser): ranked like search(), but returns index entries (titles and
+  // short summaries) in large pages. Readers fetch pages until one comes back empty and show nothing until then, so
+  // eight-preview pages meant dozens of sequential relay requests for a common word.
+  find(query='',{topic='',offset=0,limit=60}={}){
+    this.current();if(typeof query!=='string'||query.length>4000||typeof topic!=='string'||topic.length>200)throw Error('Provide a short query or topic.');
+    offset=Math.max(0,Math.min(100000,Math.floor(Number(offset)||0)));limit=Math.max(1,Math.min(100,Number(limit)||60));
+    let entries=this.index();const tokens=terms(query);
+    if(tokens.length){const byID=new Map(entries.map(e=>[e.id,e]));entries=this.db.prepare('SELECT id FROM wiki_search WHERE wiki_search MATCH ? ORDER BY bm25(wiki_search),id').all(tokens.map(t=>'"'+t+'"').join(' OR ')).map(r=>byID.get(r.id)).filter(Boolean);}
+    return entries.filter(e=>!topic||e.topic===topic||e.topic.startsWith(topic+'/')).slice(offset,offset+limit);
+  }
   navigation(id,data){
     const all=this.descriptors();const map=new Map(all.map(s=>[s.id,s]));const brief=s=>({id:s.id,title:s.title});const s=map.get(id);const breadcrumbs=[];const seen=new Set([id]);let parent=s?.parent;
     while(parent&&!seen.has(parent)){seen.add(parent);const p=map.get(parent);if(!p)break;breadcrumbs.unshift(brief(p));parent=p.parent;}

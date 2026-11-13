@@ -219,7 +219,7 @@ export function createServer({ store = new Store(), providers = new Providers(st
         const session = await providers.create(body); artifactDirectory(store,session.id); discoveredAt=0;
         return reply(201,session);
       }
-      if(req.method==='GET' && url.pathname==='/knowledge')return reply(200,{warning:store.knowledge.warning,results:store.knowledge.search(url.searchParams.get('q')||'',{topic:url.searchParams.get('topic')||'',offset:url.searchParams.get('offset')})});
+      if(req.method==='GET' && url.pathname==='/knowledge')return reply(200,{warning:store.knowledge.warning,results:store.knowledge.find(url.searchParams.get('q')||'',{topic:url.searchParams.get('topic')||'',offset:url.searchParams.get('offset'),limit:url.searchParams.get('limit')??undefined})});
       // The About you page rides on the ordinary wiki routes, pinned first, so every reader shows it unchanged.
       if(req.method==='GET' && url.pathname==='/knowledge/index'){const entry=profileEntry(store);return reply(200,{warning:store.knowledge.warning,results:[...(entry?[entry]:[]),...store.knowledge.index()]});}
       if(req.method==='GET' && url.pathname==='/knowledge/page'&&url.searchParams.get('id')===PROFILE_ID){const page=profilePage(store,{offset:url.searchParams.get('offset'),budget:url.searchParams.get('budget')??undefined});if(url.searchParams.has('revision')&&url.searchParams.get('revision')!==String(page.revision))throw error('Article changed; reload from the beginning.',409);return reply(200,{page});}
