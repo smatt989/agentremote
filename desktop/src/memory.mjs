@@ -1,4 +1,5 @@
 import { evidenceText, importReferenceNotes } from './knowledge-evidence.mjs';
+import { migrateSetup, excludedSessions } from './knowledge-bootstrap.mjs';
 import { mkdirSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -27,7 +28,7 @@ export function initMemory(db) {
   }
 }
 export class Memory {
-  constructor(store) { this.store=store; this.db=store.db; this.directory=join(store.directory,'memory'); mkdirSync(this.directory,{recursive:true,mode:0o700}); this.migrateRetention(); }
+  constructor(store) { this.store=store; this.db=store.db; this.directory=join(store.directory,'memory'); mkdirSync(this.directory,{recursive:true,mode:0o700}); this.migrateRetention(); migrateSetup(this.db); }
   migrateRetention() {
     if(this.db.prepare("SELECT 1 FROM settings WHERE key='durableKnowledgeV1'").get())return;
     const sessions=this.db.prepare("SELECT DISTINCT session FROM memory_facts WHERE json_extract(data,'$.kind') IN ('fact','decision','reference') AND json_extract(data,'$.expiresAt') IS NOT NULL").all();
@@ -91,9 +92,10 @@ export class Memory {
     const tokens=terms(query); if(!tokens.length&&!topic)return [];
     limit=Math.max(1,Math.min(12,Number(limit)||8));
     const rows=tokens.length ? this.db.prepare(`SELECT kind,ref,session,bm25(memory_search) AS rank FROM memory_search WHERE memory_search MATCH ? AND session!=? ORDER BY rank LIMIT 100`).all(tokens.map(t=>'"'+t+'"').join(' OR '),excludeSession) : this.db.prepare("SELECT 'fact' AS kind,id AS ref,session,0 AS rank FROM memory_facts WHERE topic=? OR topic LIKE ? LIMIT 100").all(topic,topic+'/%');
-    const candidates=[];const seen=new Set();
+    const candidates=[];const seen=new Set();const excluded=excludedSessions(this);
     for(const row of rows.sort((a,b)=>(a.kind==='fact'?0:1)-(b.kind==='fact'?0:1)||a.rank-b.rank)) {
-      if(this.store.deleted(row.session)||row.session===excludeSession)continue;
+      // Projects the user excluded from learning stay out of retrieval too, raw messages included.
+      if(this.store.deleted(row.session)||row.session===excludeSession||excluded.has(row.session))continue;
       if(row.kind==='message' && this.db.prepare('SELECT 1 FROM memory_hidden_sources WHERE session=? AND message=?').get(row.session,row.ref))continue;
       const record=row.kind==='fact'?this.db.prepare('SELECT data FROM memory_facts WHERE id=?').get(row.ref):this.db.prepare('SELECT data FROM messages WHERE id=? AND session=?').get(row.ref,row.session);
       if(!record)continue;const data=JSON.parse(record.data);if(data.expiresAt&&data.expiresAt<Date.now())continue;if(topic && data.topic!==topic && !data.topic?.startsWith(topic+'/'))continue;

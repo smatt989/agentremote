@@ -21,6 +21,8 @@ import { autoTitlePatch, renameSession, recentFolders } from './session-meta.mjs
 import { KeepAwake, keepAwakeEnabled, setKeepAwake } from './keep-awake.mjs';
 import { MessageQueue, TURN_ACTIVE, queuedMessages, presentedMessage } from './message-queue.mjs';
 import { accountUsage } from './session-controls.mjs';
+import { PROFILE_ID, sourcesSummary, writeSetup, profilePage, profileEntry, profileTalk, correctProfile, readProfile, requestProfile } from './knowledge-bootstrap.mjs';
+import { previewExport, importExport, imports, removeImport } from './chat-import.mjs';
 
 const MIME = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.heic':'image/heic','.pdf':'application/pdf','.svg':'image/svg+xml','.csv':'text/csv','.txt':'text/plain','.md':'text/markdown','.json':'application/json','.html':'text/html','.mp3':'audio/mpeg','.m4a':'audio/mp4','.wav':'audio/wav','.aac':'audio/aac','.aif':'audio/aiff','.aiff':'audio/aiff','.caf':'audio/x-caf','.mp4':'video/mp4','.m4v':'video/x-m4v','.mov':'video/quicktime' };
 // Agents often save a batch into a subfolder (storyboard/01.png). Register those too, by their relative path,
@@ -218,10 +220,24 @@ export function createServer({ store = new Store(), providers = new Providers(st
         return reply(201,session);
       }
       if(req.method==='GET' && url.pathname==='/knowledge')return reply(200,{warning:store.knowledge.warning,results:store.knowledge.search(url.searchParams.get('q')||'',{topic:url.searchParams.get('topic')||'',offset:url.searchParams.get('offset')})});
-      if(req.method==='GET' && url.pathname==='/knowledge/index')return reply(200,{warning:store.knowledge.warning,results:store.knowledge.index()});
+      // The About you page rides on the ordinary wiki routes, pinned first, so every reader shows it unchanged.
+      if(req.method==='GET' && url.pathname==='/knowledge/index'){const entry=profileEntry(store);return reply(200,{warning:store.knowledge.warning,results:[...(entry?[entry]:[]),...store.knowledge.index()]});}
+      if(req.method==='GET' && url.pathname==='/knowledge/page'&&url.searchParams.get('id')===PROFILE_ID){const page=profilePage(store,{offset:url.searchParams.get('offset'),budget:url.searchParams.get('budget')??undefined});if(url.searchParams.has('revision')&&url.searchParams.get('revision')!==String(page.revision))throw error('Article changed; reload from the beginning.',409);return reply(200,{page});}
       if(req.method==='GET' && url.pathname==='/knowledge/page')return reply(200,{page:store.knowledge.read(string(url.searchParams.get('id'),200),{offset:url.searchParams.get('offset'),budget:url.searchParams.get('budget')??undefined,revision:url.searchParams.get('revision')??undefined})});
-      if(req.method==='GET' && url.pathname==='/knowledge/talk')return reply(200,{talk:store.knowledge.talk(string(url.searchParams.get('id'),200))});
-      if(req.method==='POST' && url.pathname==='/knowledge/talk'){const body=await jsonBody(req);let thread;try{thread=store.knowledge.comment(string(body.id,200),string(body.text,1400));}catch(e){throw error(e.message,400);}return reply(200,{ok:true,thread});}
+      if(req.method==='GET' && url.pathname==='/knowledge/talk')return reply(200,{talk:url.searchParams.get('id')===PROFILE_ID?profileTalk(store):store.knowledge.talk(string(url.searchParams.get('id'),200))});
+      if(req.method==='POST' && url.pathname==='/knowledge/talk'){const body=await jsonBody(req);let thread;try{if(body.id===PROFILE_ID){correctProfile(store,{text:string(body.text,1400)});return reply(200,{ok:true,thread:null});}thread=store.knowledge.comment(string(body.id,200),string(body.text,1400));}catch(e){throw error(e.message,e.status||400);}return reply(200,{ok:true,thread});}
+      if(req.method==='GET' && url.pathname==='/knowledge/profile')return reply(200,{profile:readProfile(store.db)});
+      if(req.method==='POST' && url.pathname==='/knowledge/profile/correct'){const body=await jsonBody(req);return reply(200,{profile:correctProfile(store,{item:typeof body.item==='string'?body.item:null,text:typeof body.text==='string'?body.text:'',wrong:body.wrong===true})});}
+      if(req.method==='POST' && url.pathname==='/knowledge/profile/refresh'){requestProfile(store.db);return reply(200,{ok:true});}
+      // Choosing sources and importing files read local paths, so only the Mac app may call these.
+      if(url.pathname.startsWith('/knowledge/sources')||url.pathname.startsWith('/knowledge/imports')){
+        if(!store.authenticateDesktop(token))throw error('Choose knowledge sources in Agent Remote on the Mac.',403);
+        if(req.method==='GET'&&url.pathname==='/knowledge/sources')return reply(200,{...sourcesSummary(store.memory),imports:imports(store)});
+        if(req.method==='POST'&&url.pathname==='/knowledge/sources'){const body=await jsonBody(req);writeSetup(store.memory,{done:body.done,excluded:body.excluded,instructions:body.instructions});return reply(200,{...sourcesSummary(store.memory),imports:imports(store)});}
+        if(req.method==='POST'&&url.pathname==='/knowledge/imports/preview'){const body=await jsonBody(req);return reply(200,await previewExport(body.path));}
+        if(req.method==='POST'&&url.pathname==='/knowledge/imports'){const body=await jsonBody(req);return reply(200,await importExport(store,body.path,body.limit));}
+        if(req.method==='POST'&&url.pathname==='/knowledge/imports/remove'){const body=await jsonBody(req);return reply(200,removeImport(store,string(body.id,100)));}
+      }
       if (req.method==='GET' && url.pathname==='/memory') return reply(200,{warning:store.memory.warning,topics:store.memory.topics(),results:url.searchParams.get('q')?store.memory.search(url.searchParams.get('q'),{topic:url.searchParams.get('topic')||''}):store.memory.list()});
       if(req.method==='POST' && url.pathname==='/memory/forget'){const body=await jsonBody(req);store.memory.forget(string(body.id,100));return reply(200,{ok:true});}
       if(url.pathname==='/settings/session-preferences') {

@@ -13,7 +13,14 @@ struct WikiPage: Decodable {
     let related: [WikiLink]; let updatedAt: Double
     let breadcrumbs: [WikiLink]?; let children: [WikiLink]?; let backlinks: [WikiLink]?
     let outline: [WikiLink]?; let revision: Int?; let pending: Bool?
+    let profile: WikiProfile?
 }
+// The About you page (id about-you~1) carries its lines so each can be fixed or rejected.
+let profileID = "about-you~1"
+struct WikiProfileItem: Decodable, Identifiable, Hashable { let id: String; let text: String; let articles: [String]; let corrected: Bool? }
+struct WikiProfileSection: Decodable, Hashable { let heading: String; let items: [WikiProfileItem] }
+struct WikiProfile: Decodable { let generatedAt: Double; let summary: String; let sections: [WikiProfileSection] }
+struct WikiProfileResult: Decodable { let profile: WikiProfile? }
 struct WikiResults: Decodable { let results: [WikiEntry]; let warning: String? }
 struct WikiTalkPost: Decodable, Hashable { let role: String; let at: Double; let text: String; let decision: String? }
 struct WikiTalkThread: Decodable, Identifiable { let id: String; let kind: String; let status: String; let title: String; let targetTitle: String?; let claims: [String]; let posts: [WikiTalkPost]; let updated: Double }
@@ -50,18 +57,19 @@ enum WikiAPI {
         }
         return try JSONDecoder().decode(T.self, from: data)
     }
-    static func post<T: Decodable>(_ path: String, body: [String: String]) async throws -> T {
+    static func post<T: Decodable>(_ path: String, body: [String: String]) async throws -> T { try await post(path, json: body) }
+    static func post<T: Decodable>(_ path: String, json: [String: Any], timeout: Double = 30) async throws -> T {
         let directory = ProcessInfo.processInfo.environment["AGENT_REMOTE_STATE"].map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/AgentRemote")
         let token = try String(contentsOf: directory.appendingPathComponent("desktop-token"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
         let status = try Data(contentsOf: directory.appendingPathComponent("desktop-status.json"))
         let port = (try JSONSerialization.jsonObject(with: status) as? [String: Any])?["port"] as? Int ?? 8787
-        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)\(path)")!); request.httpMethod = "POST"; request.timeoutInterval = 30
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)\(path)")!); request.httpMethod = "POST"; request.timeoutInterval = timeout
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization"); request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = try JSONSerialization.data(withJSONObject: json)
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
             let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
-            throw NSError(domain: "Knowledge", code: 2, userInfo: [NSLocalizedDescriptionKey: message ?? "Couldn’t post to the wiki. Make sure Agent Remote is running."])
+            throw NSError(domain: "Knowledge", code: 2, userInfo: [NSLocalizedDescriptionKey: message ?? "Couldn’t reach Agent Remote. Make sure it is running."])
         }
         return try JSONDecoder().decode(T.self, from: data)
     }
@@ -182,7 +190,9 @@ enum WikiAPI {
                 Text("\(model.entries.count) articles" + (model.entries.contains(where: { $0.pending == true }) ? " · \(model.entries.filter { $0.pending == true }.count) updating" : "")).font(.caption).foregroundStyle(.secondary).padding(12)
             }.navigationSplitViewColumnWidth(min: 250, ideal: 310, max: 420)
         } detail: {
-            if model.selected != nil {
+            if model.selected == profileID {
+                ProfileView(model: model)
+            } else if model.selected != nil {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 22) {
@@ -297,5 +307,83 @@ enum WikiAPI {
             Divider(); Text(title).font(.title2.bold())
             ForEach(links) { p in Button(p.title) { model.navigate(p.id) }.buttonStyle(.link) }
         }
+    }
+}
+
+/// About you: what the wiki has learned about its owner. A fix or a "Not true" is saved as the user's own statement on
+/// the line's article, where the editors weigh it against the older notes.
+@MainActor struct ProfileView: View {
+    @ObservedObject var model: WikiModel
+    @State private var editing: String?
+    @State private var draft = ""
+    @State private var note = ""
+    @State private var busy = false
+    @State private var message: String?
+    private var titles: [String: String] { Dictionary((model.page?.related ?? []).map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a }) }
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                Text("About you").font(.largeTitle.bold())
+                if model.reading && model.page == nil { ProgressView("Opening…") }
+                if let error = model.pageError { Text(error).foregroundStyle(.orange) }
+                if let profile = model.page?.profile {
+                    Text(profile.summary).font(.title3)
+                    Text("Written \(Date(timeIntervalSince1970: profile.generatedAt / 1000).formatted(date: .abbreviated, time: .shortened)) from your conversations. If a line is wrong, fix it. Your correction is saved as your own statement, and the related article is updated.")
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    ForEach(profile.sections, id: \.heading) { section in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(section.heading).font(.title2.bold())
+                            ForEach(section.items) { item in row(item) }
+                        }
+                    }
+                } else if model.page != nil {
+                    Text("Agent Remote writes this page once it has learned enough from your conversations, usually within a day of setup. It will list your projects, preferences, how you work, and the people and systems you work with.")
+                        .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Add something it should know").font(.headline)
+                    HStack(alignment: .top) {
+                        TextField("For example: I moved to the Berlin office in 2026.", text: $note, axis: .vertical).lineLimit(1...4).textFieldStyle(.roundedBorder)
+                        Button("Save") { Task { if await send(["text": note]) { note = "" } } }.disabled(busy || note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                HStack {
+                    Button("Rewrite this page") {
+                        Task { do { let _: WikiPosted = try await WikiAPI.post("/knowledge/profile/refresh", json: [:]); message = "This page will be rewritten in the background within a few minutes." } catch { message = error.localizedDescription } }
+                    }
+                    if let message { Text(message).font(.callout).foregroundStyle(.secondary) }
+                }
+            }.padding(36).frame(maxWidth: 880, alignment: .leading).frame(maxWidth: .infinity)
+        }
+    }
+    @ViewBuilder private func row(_ item: WikiProfileItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("•").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.text).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 12) {
+                        if item.corrected == true { Text("Corrected by you").font(.caption).foregroundStyle(.secondary) }
+                        ForEach(item.articles.filter { titles[$0] != nil }, id: \.self) { id in Button(titles[id]!) { model.navigate(id) }.buttonStyle(.link).font(.caption) }
+                    }
+                }
+                Spacer(minLength: 12)
+                Button("Fix…") { editing = item.id; draft = item.text }.buttonStyle(.link).disabled(busy)
+                Button("Not true") { Task { _ = await send(["item": item.id, "wrong": true]) } }.buttonStyle(.link).disabled(busy)
+            }
+            if editing == item.id {
+                HStack(alignment: .top) {
+                    TextField("What is actually true?", text: $draft, axis: .vertical).lineLimit(1...4).textFieldStyle(.roundedBorder)
+                    Button("Save") { Task { if await send(["item": item.id, "text": draft]) { editing = nil } } }.disabled(busy || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Cancel") { editing = nil }
+                }.padding(.leading, 20)
+            }
+        }
+    }
+    private func send(_ body: [String: Any]) async -> Bool {
+        busy = true; defer { busy = false }
+        do { let _: WikiProfileResult = try await WikiAPI.post("/knowledge/profile/correct", json: body); message = "Saved. The wiki’s editors will update the related articles."; await model.read(profileID); return true }
+        catch { message = error.localizedDescription; return false }
     }
 }

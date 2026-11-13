@@ -1,5 +1,7 @@
 import { knowledgeSchema, knowledgeInstruction, editorialSchema, editorialInstruction, reviewSchema, reviewInstruction } from './knowledge.mjs';
 import { runEditor } from './wiki-editors.mjs';
+import { readSetup, learnable, preferredProvider, importInstructionFiles, nextProject, runProject, profileDue, generateProfile, nextSkim, markSkimmed } from './knowledge-bootstrap.mjs';
+import { importedSessions } from './chat-import.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -77,18 +79,23 @@ export class MemoryWorker {
     if(this.running||this.closed)return;this.running=true;
     try {
       if(this.knowledgeTurn){this.knowledgeTurn=false;if(await this.learnPage(now))return;}
-      const sessions=this.memory.store.sessions().filter(s=>(['running','submitting','waiting'].includes(s.status)||now-(s.updatedAt||0)>=this.idleMs||s.status==='ended')&&(this.failures.get(s.id)||0)<now).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
-      let imported=false;
+      const setup=readSetup(this.memory.db);
+      // Imported chat exports are hidden from the session list but learned like any finished conversation.
+      const candidates=[...this.memory.store.sessions(),...(setup.done?importedSessions(this.memory.store):[])];
+      const sessions=candidates.filter(s=>learnable(setup,s)&&(['running','submitting','waiting'].includes(s.status)||now-(s.updatedAt||0)>=this.idleMs||s.status==='ended')&&(this.failures.get(s.id)||0)<now).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+      // One provider history import per tick, newest first. Choosing it apart from extraction order matters: when it
+      // rode along with extraction, any chat with new messages ahead in the list kept older sessions from loading.
+      const needsHistory=s=>{const history=this.memory.db.prepare('SELECT updated FROM memory_history WHERE session=?').get(s.id);return !history||history.updated<(s.updatedAt||0);};
+      const due=this.loadHistory&&sessions.find(s=>s.provider!=='import'&&needsHistory(s));
+      if(due){try {await this.loadHistory(due.id);if(this.closed)return;this.memory.db.prepare('INSERT INTO memory_history VALUES(?,?) ON CONFLICT(session) DO UPDATE SET updated=excluded.updated').run(due.id,due.updatedAt||0);}catch{if(this.closed)return;this.failures.set(due.id,now+15*60_000);}}
+      if(setup.done&&await this.bootstrap(now,setup,sessions)){this.knowledgeTurn=true;return;}
       for(const session of sessions) {
-        const history=this.memory.db.prepare('SELECT updated FROM memory_history WHERE session=?').get(session.id);
-        if(this.loadHistory && !imported && (!history || history.updated<(session.updatedAt||0))) {
-          imported=true;try {await this.loadHistory(session.id);if(this.closed)return;this.memory.db.prepare('INSERT INTO memory_history VALUES(?,?) ON CONFLICT(session) DO UPDATE SET updated=excluded.updated').run(session.id,session.updatedAt||0);}catch{if(this.closed)return;this.failures.set(session.id,now+15*60_000);continue;}
-        }
+        if((this.failures.get(session.id)||0)>=now)continue;
         this.memory.importReferences(session);
         const batch=this.memory.batch(session.id,{active:['running','submitting','waiting'].includes(session.status)});if(!batch.messages.length){if(batch.seq)this.memory.apply(batch,{facts:[]});continue;}
         this.controller=new AbortController();
         try {
-          const provider=session.provider==='claude'?'claude':'codex';
+          const provider=session.provider==='claude'?'claude':session.provider==='codex'?'codex':preferredProvider(this.memory.store);
           const result=await this.extract(batch,this.memory.topics(),{signal:this.controller.signal,provider});
           if(!this.closed)this.memory.apply(batch,result);
           this.memory.warning=null;
@@ -97,6 +104,37 @@ export class MemoryWorker {
       }
       await this.learnPage(now);
     } finally {this.running=false;}
+  }
+  // First-run jobs: instruction files (no model), one project orientation pass, a quick first pass over each
+  // conversation, then the About you page. True when a model job ran this tick. These run before full extraction so the
+  // wiki covers every project early.
+  async bootstrap(now,setup,sessions=[]) {
+    if(now-(this.instructionsScanned||0)>=10*60_000){this.instructionsScanned=now;try{importInstructionFiles(this.memory,setup);}catch{}}
+    const skip=new Set([...this.failures].filter(([id,until])=>id.startsWith('project:')&&until>now).map(([id])=>id.slice(8)));
+    const provider=preferredProvider(this.memory.store);
+    let job;try{job=await nextProject(this.memory,setup,now,skip);}catch{job=null;}
+    if(job){
+      this.controller=new AbortController();
+      try{await runProject(this.memory,job,this.extract,{signal:this.controller.signal,provider});}catch{if(!this.closed)this.failures.set('project:'+job.project.path,now+60*60_000);}
+      return true;
+    }
+    const skim=nextSkim(this.memory,sessions.filter(s=>(this.failures.get('skim:'+s.id)||0)<now));
+    if(skim){
+      this.controller=new AbortController();
+      try{
+        this.memory.importReferences(skim.session);
+        const provider=skim.session.provider==='codex'?'codex':'claude';
+        const result=await this.extract(skim.batch,this.memory.topics(),{signal:this.controller.signal,provider});
+        if(!this.closed){this.memory.apply(skim.batch,result);markSkimmed(this.memory.db,skim.session.id);}
+      }catch{if(!this.closed)this.failures.set('skim:'+skim.session.id,now+60*60_000);}
+      return true;
+    }
+    if((this.failures.get('profile')||0)<now&&profileDue(this.memory,now)){
+      this.controller=new AbortController();
+      try{await generateProfile(this.memory,this.extract,{signal:this.controller.signal,provider});}catch{if(!this.closed)this.failures.set('profile',now+60*60_000);}
+      return true;
+    }
+    return false;
   }
   async learnPage(now) {
     if(Number(this.memory.db.prepare("SELECT value FROM settings WHERE key='wiki-bulk-until'").get()?.value||0)>now)return false;

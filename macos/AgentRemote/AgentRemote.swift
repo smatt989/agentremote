@@ -67,6 +67,8 @@ struct KeepAwakeStatus: Decodable { let enabled: Bool }
     var signInPending: Bool { checkingSignIn || signInCheckedAt == .distantPast }
     @Published var keepAwake: Bool? // nil when the service doesn't support the setting
     @Published var terminalEnabled = false
+    @Published var knowledge: KnowledgeSources?
+    private var knowledgeLoadedAt = Date.distantPast
     @Published var terminalMessage: String?
     let permissions = PermissionsModel()
     @Published var loginEnabled = false
@@ -169,8 +171,13 @@ struct KeepAwakeStatus: Decodable { let enabled: Bool }
         if Date().timeIntervalSince(signInCheckedAt) > 20 { await checkAgentSignIn() }
         if timer != nil { await loadKeepAwake() }
     }
+    func loadKnowledge() async {
+        knowledgeLoadedAt = Date()
+        knowledge = running ? try? await WikiAPI.get("/knowledge/sources") : nil
+    }
     func refresh() {
         scanAgents(); updateLoginStatus()
+        if running && Date().timeIntervalSince(knowledgeLoadedAt) > 15 { Task { await loadKnowledge() } }
         if qrExpires <= Date() { qrImage = nil; pairingURI = nil }
         // An agent installed outside the app (for example in Terminal) still gets its sign-in checked.
         if !checkingSignIn, Date().timeIntervalSince(signInCheckedAt) > 60,
@@ -561,6 +568,7 @@ struct SetupView: View {
                     PermissionsStep(permissions: model.permissions, shown: shownBinding(2))
                     awakeStep
                     pairStep.id(4)
+                    knowledgeStep
                     tryStep
                     footer
                 }.padding(28)
@@ -680,8 +688,28 @@ struct SetupView: View {
     }
 
     // Step 5
+    private var knowledgeStep: some View {
+        let progress = model.knowledge?.progress
+        let done = model.knowledge?.setup.done == true
+        let summary = model.knowledge == nil ? (model.running ? "Checking your past conversations…" : "Start remote access first")
+            : done ? "\(progress!.learned) of \(progress!.conversations) conversations learned · \(progress!.articles) wiki articles"
+            : progress!.waiting > 0 ? "\(progress!.waiting) past conversations found · choose what it learns from" : "Choose what it learns from"
+        return StepCard(number: 5, title: "Build your knowledge base", state: model.knowledge == nil ? .info : done ? .done : .needed, summary: summary, shown: shownBinding(5)) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Agent Remote turns your conversations into a wiki your agents read before they answer. Pick the projects, instruction files and ChatGPT or Claude.ai history it may learn from.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button(done ? "Knowledge sources…" : "Choose sources…") { (NSApp.delegate as? AppDelegate)?.showKnowledgeSetup() }.disabled(!model.running)
+                    Button("Open the wiki") { (NSApp.delegate as? AppDelegate)?.showKnowledge() }.disabled(!model.running)
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    // Step 6
     private var tryStep: some View {
-        StepCard(number: 5, title: "Try it", state: .info, summary: "Open Agent Remote on your phone and start a chat.", shown: .constant(true)) {
+        StepCard(number: 6, title: "Try it", state: .info, summary: "Open Agent Remote on your phone and start a chat.", shown: .constant(true)) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Try: “Summarize what’s in my Downloads folder.”").font(.callout)
                 Divider()
@@ -763,6 +791,8 @@ struct SetupView: View {
     var window: NSWindow!
     var statusItem: NSStatusItem!
     var knowledgeWindow: NSWindow?
+    var knowledgeSetupWindow: NSWindow?
+    let wikiModel = WikiModel()
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 740), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -777,7 +807,8 @@ struct SetupView: View {
         let menu = NSMenu()
         menu.addItem(withTitle: "Open Agent Remote…", action: #selector(showWindow), keyEquivalent: "")
         menu.addItem(withTitle: "Open Agent Remote Client…", action: #selector(openClient), keyEquivalent: "n")
-        menu.addItem(withTitle: "Knowledge wiki…", action: #selector(showKnowledge), keyEquivalent: "k")
+        menu.addItem(withTitle: "Knowledge wiki…", action: #selector(openKnowledge), keyEquivalent: "k")
+        menu.addItem(withTitle: "Knowledge sources…", action: #selector(showKnowledgeSetup), keyEquivalent: "")
         menu.addItem(withTitle: "Pair a device…", action: #selector(pairPhone), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
@@ -854,13 +885,23 @@ struct SetupView: View {
         } catch { result["error"] = error.localizedDescription }
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: report, options: .atomic) }
     }
-    @objc func showKnowledge() {
+    @objc func openKnowledge() { showKnowledge() }
+    func showKnowledge(article: String? = nil) {
         if knowledgeWindow == nil {
             let view = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 800), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             view.title = "Agent Remote — Knowledge"; view.isReleasedWhenClosed = false; view.center()
-            view.contentView = NSHostingView(rootView: WikiView()); knowledgeWindow = view
+            view.contentView = NSHostingView(rootView: WikiView(model: wikiModel)); knowledgeWindow = view
         }
+        if let article { wikiModel.navigate(article) }
         knowledgeWindow?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+    }
+    @objc func showKnowledgeSetup() {
+        if knowledgeSetupWindow == nil {
+            let view = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 760), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            view.title = "Agent Remote — Knowledge Sources"; view.isReleasedWhenClosed = false; view.center()
+            view.contentView = NSHostingView(rootView: KnowledgeSetupView()); knowledgeSetupWindow = view
+        }
+        knowledgeSetupWindow?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
     /// Chats on this Mac happen in Agent Remote Client, the same app as on the phone and other Macs.
     @objc func openClient() {
