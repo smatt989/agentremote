@@ -790,6 +790,7 @@ struct ArtifactPreview: View {
                 else if let text = file.text {
                     ScrollView {
                         if file.isMarkdown { MessageMarkdown(text: text).padding().textSelection(.enabled) }
+                        else if Platform.isMac { SelectableRichText(text: NSAttributedString(string: text, attributes: [.font: UIFont.preferredFont(forTextStyle: .body), .foregroundColor: UIColor.label])).padding() }
                         else { Text(text).frame(maxWidth: .infinity, alignment: .leading).padding().textSelection(.enabled) }
                     }
                 } else if FileQuickLook.canPreview(file.url) { FileQuickLook(url: file.url) }

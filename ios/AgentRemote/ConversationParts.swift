@@ -77,8 +77,7 @@ struct MessageView: View {
     private var user: some View {
         VStack(alignment: .trailing, spacing: 2) {
             TrailingBubbleLayout {
-                MessageMarkdown(text: message.text, images: message.images ?? [], api: api, cacheKey: message.id, fill: false)
-                    .modifier(SelectableOnMac())
+                MessageMarkdown(text: message.text, images: message.images ?? [], api: api, cacheKey: message.id, fill: false, menu: macMenu)
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .background(Theme.userBubble, in: RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous))
                     .opacity(message.queued == true ? 0.7 : 1)
@@ -108,8 +107,7 @@ struct MessageView: View {
     /// The agent's turns: full width, no bubble, with small actions underneath.
     private var agent: some View {
         VStack(alignment: .leading, spacing: 6) {
-            MessageMarkdown(text: message.text, images: message.images ?? [], api: api, cacheKey: message.id)
-                .modifier(SelectableOnMac())
+            MessageMarkdown(text: message.text, images: message.images ?? [], api: api, cacheKey: message.id, menu: macMenu)
                 .contentShape(Rectangle())
                 .contextMenu { menu }
             if !files.isEmpty, let openFile {
@@ -136,12 +134,24 @@ struct MessageView: View {
         let style: (icon: String, color: Color) = message.kind == "error" ? ("exclamationmark.triangle.fill", Theme.failure) : message.kind == "attention" ? ("exclamationmark.bubble.fill", Theme.needsYou) : ("info.circle", Theme.info)
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: style.icon).accessibilityHidden(true)
-            Text(message.text).frame(maxWidth: .infinity, alignment: .leading)
+            if Platform.isMac {
+                SelectableRichText(text: NSAttributedString(string: message.text, attributes: [.font: UIFont.preferredFont(forTextStyle: .footnote), .foregroundColor: UIColor(style.color)]), menu: macMenu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else { Text(message.text).frame(maxWidth: .infinity, alignment: .leading) }
         }
         .font(.footnote).foregroundStyle(style.color)
-        .modifier(SelectableOnMac())
         .contentShape(Rectangle())
         .contextMenu { menu }
+    }
+    /// The message actions, added to the Mac text views' own right-click menu (Copy, Look Up, Share…).
+    private func macMenu() -> [UIMenuElement] {
+        var items: [UIMenuElement] = [UIAction(title: "Copy Message", image: UIImage(systemName: "doc.on.doc")) { [text = message.text] _ in
+            UIPasteboard.general.setItems([[UTType.utf8PlainText.identifier: text]])
+        }]
+        if message.role == "assistant" { items.append(UIAction(title: "Read Aloud", image: UIImage(systemName: "speaker.wave.2")) { [speak] _ in speak() }) }
+        if canSave { items.append(UIAction(title: saved ? "Remove from saved knowledge" : "Save to knowledge", image: UIImage(systemName: saved ? "bookmark.slash" : "bookmark"), attributes: saving ? .disabled : []) { _ in toggleSaved() }) }
+        if let cancelQueued { items.append(UIAction(title: "Cancel Queued Message", image: UIImage(systemName: "xmark.circle"), attributes: .destructive) { _ in cancelQueued() }) }
+        return items
     }
     @ViewBuilder private var menu: some View {
         CopyTextButton(text: message.text, label: "Copy message")
@@ -159,14 +169,6 @@ struct MessageActionStyle: ButtonStyle {
         configuration.label.font(.caption).foregroundStyle(Theme.info)
             .frame(width: Theme.tapTarget, height: Theme.tapTarget).contentShape(Rectangle())
             .opacity(configuration.isPressed ? 0.4 : 1)
-    }
-}
-
-/// On Mac, message text selects with the pointer like any document. On iPhone a long press already opens the
-/// message menu, so selection lives behind "Select Text" there instead of fighting the gesture.
-struct SelectableOnMac: ViewModifier {
-    func body(content: Content) -> some View {
-        if Platform.isMac { content.textSelection(.enabled) } else { content }
     }
 }
 
@@ -343,37 +345,61 @@ struct MessageMarkdown: View {
     var cacheKey: String? = nil
     /// Full width (agent replies, documents) or hugging its text (a user bubble).
     var fill = true
+    /// Mac only: actions added to the text's right-click menu, next to Copy and Look Up.
+    var menu: (() -> [UIMenuElement])? = nil
     var body: some View {
         let rendered = RenderedMarkdown.make(text, images: images, key: cacheKey)
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(rendered.blocks) { item in
-                let block = item.block, styled = item.styled ?? AttributedString(block.text)
-                switch block.kind {
-                case .code:
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(block.language.isEmpty ? "Code" : block.language).font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            CopyTextButton(text: block.text, label: "Copy code").labelStyle(.iconOnly).buttonStyle(MessageActionStyle()).padding(-12)
-                        }
-                        ScrollView(.horizontal) { Text(styled).font(.system(.callout, design: .monospaced)).fixedSize(horizontal: true, vertical: false) }
-                    }.padding(12).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-                case .heading:
-                    Text(styled).font(block.level == 1 ? .title2.bold() : .headline).padding(.top, 6)
-                case .bullet:
-                    HStack(alignment: .top, spacing: 8) { Text(block.language); Text(styled).frame(maxWidth: fill ? .infinity : nil, alignment: .leading) }.padding(.leading, CGFloat(block.level) * 12)
-                case .quote:
-                    HStack { Rectangle().fill(Theme.accent.opacity(0.5)).frame(width: 3); Text(styled).foregroundStyle(.secondary) }.fixedSize(horizontal: false, vertical: true)
-                case .table:
-                    ReadableMarkdownTable(rows: item.rows)
-                case .rule: Divider()
-                case .image:
-                    if let artifact = images.first(where: { $0.id == block.text }), let api { InlineArtifactImage(artifact: artifact, api: api) }
-                case .paragraph:
-                    if fill { Text(styled).frame(maxWidth: .infinity, alignment: .leading) } else { Text(styled).fixedSize(horizontal: false, vertical: true) }
-                }
+            // SwiftUI's textSelection only offers "copy all" on Catalyst; on Mac the prose is UIKit text views
+            // so it drag-selects like any document.
+            if Platform.isMac {
+                ForEach(rendered.macSegments) { segment in macSegment(segment) }
+            } else {
+                ForEach(rendered.blocks) { item in block(item) }
             }
         }.frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
+    }
+    @ViewBuilder private func block(_ item: RenderedBlock) -> some View {
+        let block = item.block, styled = item.styled ?? AttributedString(block.text)
+        switch block.kind {
+        case .code:
+            codeCard(block) { ScrollView(.horizontal) { Text(styled).font(.system(.callout, design: .monospaced)).fixedSize(horizontal: true, vertical: false) } }
+        case .heading:
+            Text(styled).font(block.level == 1 ? .title2.bold() : .headline).padding(.top, 6)
+        case .bullet:
+            HStack(alignment: .top, spacing: 8) { Text(block.language); Text(styled).frame(maxWidth: fill ? .infinity : nil, alignment: .leading) }.padding(.leading, CGFloat(block.level) * 12)
+        case .quote:
+            HStack { Rectangle().fill(Theme.accent.opacity(0.5)).frame(width: 3); Text(styled).foregroundStyle(.secondary) }.fixedSize(horizontal: false, vertical: true)
+        case .table:
+            ReadableMarkdownTable(rows: item.rows)
+        case .rule: Divider()
+        case .image:
+            if let artifact = images.first(where: { $0.id == block.text }), let api { InlineArtifactImage(artifact: artifact, api: api) }
+        case .paragraph:
+            if fill { Text(styled).frame(maxWidth: .infinity, alignment: .leading) } else { Text(styled).fixedSize(horizontal: false, vertical: true) }
+        }
+    }
+    @ViewBuilder private func macSegment(_ segment: MacSegment) -> some View {
+        switch segment.kind {
+        case .prose(let text):
+            SelectableRichText(text: text, fill: fill, menu: menu)
+        case .quote(let text):
+            HStack { Rectangle().fill(Theme.accent.opacity(0.5)).frame(width: 3); SelectableRichText(text: text, fill: fill, menu: menu) }.fixedSize(horizontal: false, vertical: true)
+        case .code(let block, let text):
+            codeCard(block) { ScrollView(.horizontal) { SelectableRichText(text: text, fill: false, wraps: false, menu: menu) } }
+        case .other(let item):
+            self.block(item)
+        }
+    }
+    private func codeCard(_ block: MarkdownBlock, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(block.language.isEmpty ? "Code" : block.language).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                CopyTextButton(text: block.text, label: "Copy code").labelStyle(.iconOnly).buttonStyle(MessageActionStyle()).padding(-12)
+            }
+            content()
+        }.padding(12).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -388,6 +414,9 @@ struct RenderedBlock: Identifiable {
 final class RenderedMarkdown {
     let text: String, imageIDs: [String], blocks: [RenderedBlock]
     init(text: String, imageIDs: [String], blocks: [RenderedBlock]) { self.text = text; self.imageIDs = imageIDs; self.blocks = blocks }
+    /// Mac: consecutive prose blocks joined into one attributed string, so a selection can run across paragraphs,
+    /// headings and lists. Built on first use (main thread) and cached with the parse.
+    lazy var macSegments: [MacSegment] = MacSegment.build(blocks)
     private static let cache: NSCache<NSString, RenderedMarkdown> = { let cache = NSCache<NSString, RenderedMarkdown>(); cache.countLimit = 800; return cache }()
     static func make(_ text: String, images: [Artifact], key: String?) -> RenderedMarkdown {
         let ids = images.map(\.id)
@@ -413,6 +442,144 @@ final class RenderedMarkdown {
             let cells = line.trimmingCharacters(in: CharacterSet(charactersIn: "|")).components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
             if cells.allSatisfy({ $0.range(of: #"^:?-{3,}:?$"#, options: .regularExpression) != nil }) { return nil }
             return cells
+        }
+    }
+}
+
+// MARK: - Selectable text on Mac
+
+struct MacSegment: Identifiable {
+    enum Kind { case prose(NSAttributedString), quote(NSAttributedString), code(MarkdownBlock, NSAttributedString), other(RenderedBlock) }
+    let id: Int
+    let kind: Kind
+    static func build(_ blocks: [RenderedBlock]) -> [MacSegment] {
+        var result: [MacSegment] = [], run: [RenderedBlock] = []
+        func flush() {
+            guard let first = run.first else { return }
+            if first.block.kind == .quote { result.append(.init(id: first.id, kind: .quote(MacText.prose(run, color: .secondaryLabel)))) }
+            else { result.append(.init(id: first.id, kind: .prose(MacText.prose(run, color: .label)))) }
+            run = []
+        }
+        for item in blocks {
+            switch item.block.kind {
+            case .paragraph, .heading, .bullet:
+                if run.first?.block.kind == .quote { flush() }
+                run.append(item)
+            case .quote:
+                if let first = run.first, first.block.kind != .quote { flush() }
+                run.append(item)
+            case .code:
+                flush()
+                let font = UIFont.monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .callout).pointSize, weight: .regular)
+                result.append(.init(id: item.id, kind: .code(item.block, MacText.convert(item.styled ?? AttributedString(item.block.text), font: font, color: .label))))
+            case .table, .rule, .image:
+                flush(); result.append(.init(id: item.id, kind: .other(item)))
+            }
+        }
+        flush()
+        return result
+    }
+}
+
+/// SwiftUI-styled Markdown (inline intents, links, code colors) as UIKit attributes, matching MessageMarkdown's fonts.
+enum MacText {
+    static func font(_ style: UIFont.TextStyle, bold: Bool = false) -> UIFont {
+        let font = UIFont.preferredFont(forTextStyle: style)
+        guard bold, let descriptor = font.fontDescriptor.withSymbolicTraits(.traitBold) else { return font }
+        return UIFont(descriptor: descriptor, size: font.pointSize)
+    }
+    static func convert(_ styled: AttributedString, font base: UIFont, color: UIColor) -> NSMutableAttributedString {
+        let result = NSMutableAttributedString()
+        for run in styled.runs {
+            let intent = run.attributes[AttributeScopes.FoundationAttributes.InlinePresentationIntentAttribute.self] ?? []
+            var font = intent.contains(.code) ? UIFont.monospacedSystemFont(ofSize: base.pointSize, weight: .regular) : base
+            var traits = font.fontDescriptor.symbolicTraits
+            if intent.contains(.stronglyEmphasized) { traits.insert(.traitBold) }
+            if intent.contains(.emphasized) { traits.insert(.traitItalic) }
+            if traits != font.fontDescriptor.symbolicTraits, let descriptor = font.fontDescriptor.withSymbolicTraits(traits) { font = UIFont(descriptor: descriptor, size: font.pointSize) }
+            var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: run.attributes[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self].map { UIColor($0) } ?? color]
+            if intent.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+            if let link = run.attributes[AttributeScopes.FoundationAttributes.LinkAttribute.self] { attributes[.link] = link }
+            result.append(NSAttributedString(string: String(styled[run.range].characters), attributes: attributes))
+        }
+        return result
+    }
+    /// Paragraphs, headings and list items as one string; block gaps (10 pt, headings +6) become paragraph spacing.
+    static func prose(_ items: [RenderedBlock], color: UIColor) -> NSAttributedString {
+        let result = NSMutableAttributedString(), body = font(.body)
+        for (index, item) in items.enumerated() {
+            let block = item.block, styled = item.styled ?? AttributedString(block.text), last = index == items.count - 1
+            let style = NSMutableParagraphStyle()
+            let piece: NSMutableAttributedString
+            switch block.kind {
+            case .heading:
+                piece = convert(styled, font: block.level == 1 ? font(.title2, bold: true) : font(.headline), color: color)
+                if index > 0 { style.paragraphSpacingBefore = 6 }
+            case .bullet:
+                let indent = CGFloat(block.level) * 12, marker = block.language + "\t"
+                let markerWidth = (block.language as NSString).size(withAttributes: [.font: body]).width
+                style.firstLineHeadIndent = indent; style.headIndent = indent + markerWidth + 8
+                style.tabStops = [NSTextTab(textAlignment: .natural, location: style.headIndent)]
+                piece = NSMutableAttributedString(string: marker, attributes: [.font: body, .foregroundColor: color])
+                piece.append(convert(styled, font: body, color: color))
+            default:
+                piece = convert(styled, font: body, color: color)
+            }
+            if !last { piece.append(NSAttributedString(string: "\n", attributes: [.font: body])) }
+            let whole = NSRange(location: 0, length: piece.length)
+            piece.addAttribute(.paragraphStyle, value: style, range: whole)
+            // Only the block's last line gets the gap; line breaks inside a paragraph stay tight.
+            if !last, let spaced = style.mutableCopy() as? NSMutableParagraphStyle {
+                spaced.paragraphSpacing = 10
+                piece.addAttribute(.paragraphStyle, value: spaced, range: (piece.string as NSString).paragraphRange(for: NSRange(location: piece.length - 1, length: 0)))
+            }
+            result.append(piece)
+        }
+        return result
+    }
+}
+
+/// Read-only rich text with real pointer selection, ⌘C and double-click, for Mac (Catalyst).
+struct SelectableRichText: UIViewRepresentable {
+    let text: NSAttributedString
+    /// Take the full offered width, or hug the text (user bubbles).
+    var fill = true
+    /// False for code: one line per source line, scrolled sideways by the enclosing ScrollView.
+    var wraps = true
+    var menu: (() -> [UIMenuElement])? = nil
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.isEditable = false; view.isSelectable = true; view.isScrollEnabled = false
+        view.backgroundColor = .clear; view.textContainerInset = .zero; view.textContainer.lineFragmentPadding = 0
+        view.linkTextAttributes = [.foregroundColor: UIColor(Theme.accent)]
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        view.delegate = context.coordinator
+        view.attributedText = text; context.coordinator.shown = text
+        return view
+    }
+    func updateUIView(_ view: UITextView, context: Context) {
+        context.coordinator.menu = menu
+        // Re-setting identical text would drop the person's selection on every poll.
+        if context.coordinator.shown !== text && context.coordinator.shown?.isEqual(to: text) != true {
+            context.coordinator.shown = text; view.attributedText = text
+        }
+    }
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let offered = wraps ? (proposal.width ?? 600) : .greatestFiniteMagnitude
+        var width = offered
+        if !fill || !wraps {
+            let used = text.boundingRect(with: CGSize(width: offered, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil).width
+            width = min(offered, ceil(used) + 1)
+        }
+        return CGSize(width: width, height: ceil(uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height))
+    }
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var menu: (() -> [UIMenuElement])?
+        var shown: NSAttributedString?
+        func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+            guard let extra = menu?(), !extra.isEmpty else { return nil }
+            return UIMenu(children: suggestedActions + [UIMenu(options: .displayInline, children: extra)])
         }
     }
 }
